@@ -10,7 +10,7 @@ from sklearn.svm import LinearSVC
 net = pnet.PartsNet([
     pnet.PartsLayer(10, (5, 5), settings=dict(outer_frame=0, threshold=1, samples_per_image=15)),
     pnet.PoolingLayer(shape=(2, 2), strides=(2, 2)),
-    pnet.PartsLayer(20, (2, 2), settings=dict(outer_frame=1, threshold=1, samples_per_image=4)),
+    pnet.PartsLayer(20, (1, 1), settings=dict(outer_frame=0, threshold=1, samples_per_image=100)),
     pnet.PoolingLayer(shape=(3, 3), strides=(3, 3)),
 ])
 

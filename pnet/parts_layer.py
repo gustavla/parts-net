@@ -76,16 +76,11 @@ class PartsLayer(Layer):
             # TODO: Maybe shuffle an iterator of the indices?
             indices = list(itr.product(xrange(w-1), xrange(h-1)))
             rs.shuffle(indices)
-            #i_iter = itr.cycle(iter(indices))
-            i_iter = iter(indices)
+            i_iter = itr.cycle(iter(indices))
 
             for sample in xrange(samples_per_image):
                 for tries in xrange(50):
-                    #x, y = random.randint(0, w-1), random.randint(0, h-1)
-                    try:
-                        x, y = i_iter.next()
-                    except StopIteration:
-                        raise Exception('samples_per_image set higher than possible samples')
+                    x, y = i_iter.next()
                     selection = [slice(x, x+self._part_shape[0]), slice(y, y+self._part_shape[1])]
 
                     patch = Xi[selection]

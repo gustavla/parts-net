@@ -133,7 +133,6 @@ def main(name=None):
     if name is not None and name != '__main__':
         return False
 
-    from mpi4py import MPI
     rank =  MPI.COMM_WORLD.Get_rank()
     if rank == 0:
         _init()
