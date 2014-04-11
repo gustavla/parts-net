@@ -1,5 +1,6 @@
 from __future__ import division, print_function, absolute_import 
 
+import amitgroup as ag
 from pnet.layer import Layer
 
 class PartsNet(Layer):
@@ -8,13 +9,12 @@ class PartsNet(Layer):
 
     def train(self, X):
         curX = X
-        for layer in self._layers:
+        for l, layer in enumerate(self._layers):
             if not layer.trained:
                 layer.train(curX)
+            ag.info('Training layer {}... Done.'.format(l))
             curX = layer.extract(curX) 
 
-        #return curX
-        
     def extract(self, X):
         curX = X
         for layer in self._layers:
@@ -32,6 +32,7 @@ class PartsNet(Layer):
 
     @classmethod
     def load_from_dict(self, d):
+        pass
         #self._layers = []
         #for layer_dict in d['layers']:
             #layer = Layer.construct

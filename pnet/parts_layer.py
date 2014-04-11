@@ -1,5 +1,6 @@
 from __future__ import division, print_function, absolute_import 
 
+from scipy.special import logit
 import numpy as np
 import itertools as itr
 from pnet.layer import Layer
@@ -27,14 +28,17 @@ class PartsLayer(Layer):
 
     def extract(self, X):
         assert self._parts is not None, "Must be trained before calling extract"
-        
-        from pnet.cyfuncs import code_index_map
 
         th = self._settings['threshold']
+        part_logits = np.rollaxis(logit(self._parts).astype(np.float64), 0, 4)
+        constant_terms = np.apply_over_axes(np.sum, np.log(1-self._parts).astype(np.float64), [1, 2, 3]).ravel()
+        print('ct', constant_terms)
 
+        print('pl', part_logits.shape)
 
-        return code_index_map(X, weights, constants, th,
-                              outer_frame=self._settings['outer_frame']) 
+        from pnet.cyfuncs import code_index_map
+        return code_index_map(X, part_logits, constant_terms, th,
+                              outer_frame=self._settings['outer_frame'])
 
     @property
     def trained(self):

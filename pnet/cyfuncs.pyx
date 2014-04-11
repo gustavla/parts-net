@@ -17,17 +17,18 @@ cdef inline int int_min(int a, int b) nogil: return a if a <= b else b
 def subsample_offset_shape(shape, size):
     return [int(shape[i]%size[i]/2 + size[i]/2)  for i in xrange(2)]
 
-def code_index_map(np.ndarray[ndim=3,dtype=np.uint8_t] X, 
+def code_index_map(np.ndarray[ndim=4,dtype=np.uint8_t] X, 
                    np.ndarray[ndim=4,dtype=np.float64_t] part_logits, 
                    np.ndarray[ndim=1,dtype=np.float64_t] constant_terms, 
                    int threshold, outer_frame=0):
-    cdef unsigned int num_parts = part_logits.shape[0]
-    cdef unsigned int part_x_dim = part_logits.shape[1]
-    cdef unsigned int part_y_dim = part_logits.shape[2]
-    cdef unsigned int part_z_dim = part_logits.shape[3]
-    cdef unsigned int X_x_dim = X.shape[0]
-    cdef unsigned int X_y_dim = X.shape[1]
-    cdef unsigned int X_z_dim = X.shape[2]
+    cdef unsigned int part_x_dim = part_logits.shape[0]
+    cdef unsigned int part_y_dim = part_logits.shape[1]
+    cdef unsigned int part_z_dim = part_logits.shape[2]
+    cdef unsigned int num_parts = part_logits.shape[3]
+    cdef unsigned int n_samples = X.shape[0]
+    cdef unsigned int X_x_dim = X.shape[1]
+    cdef unsigned int X_y_dim = X.shape[2]
+    cdef unsigned int X_z_dim = X.shape[3]
     cdef unsigned int new_x_dim = X_x_dim - part_x_dim + 1
     cdef unsigned int new_y_dim = X_y_dim - part_y_dim + 1
     cdef unsigned int i_start,j_start,i_end,j_end,i,j,z,k, cx0, cx1, cy0, cy1 
@@ -37,12 +38,13 @@ def code_index_map(np.ndarray[ndim=3,dtype=np.uint8_t] X,
     # we have num_parts + 1 because we are also including some regions as being
     # thresholded due to there not being enough edges
     
-    cdef np.ndarray[dtype=np.int32_t, ndim=2] out_map = -np.ones((new_x_dim,
-                                                                  new_y_dim), dtype=np.int32)
+    cdef np.ndarray[dtype=np.int64_t, ndim=3] out_map = -np.ones((n_samples,
+                                                                  new_x_dim,
+                                                                  new_y_dim), dtype=np.int64)
     cdef np.ndarray[dtype=np.float64_t, ndim=1] vs = np.ones(num_parts, dtype=np.float64)
     cdef np.float64_t[:] vs_mv = vs
 
-    cdef np.uint8_t[:,:,:] X_mv = X
+    cdef np.uint8_t[:,:,:,:] X_mv = X
 
     #cdef np.ndarray[dtype=np.float64_t, ndim=4] part_logits = np.rollaxis((log_parts - log_invparts).astype(np.float64), 0, 4).copy()
 
@@ -51,7 +53,7 @@ def code_index_map(np.ndarray[ndim=3,dtype=np.uint8_t] X,
     cdef np.float64_t[:,:,:,:] part_logits_mv = part_logits
     cdef np.float64_t[:] constant_terms_mv = constant_terms
 
-    cdef np.int32_t[:,:] out_map_mv = out_map
+    cdef np.int64_t[:,:,:] out_map_mv = out_map
 
     cdef np.ndarray[dtype=np.int64_t, ndim=2] _integral_counts = np.zeros((X_x_dim+1, X_y_dim+1), dtype=np.int64)
     cdef np.int64_t[:,:] integral_counts = _integral_counts
@@ -67,46 +69,47 @@ def code_index_map(np.ndarray[ndim=3,dtype=np.uint8_t] X,
     # Build integral image of edge counts
     # First, fill it with edge counts and accmulate across
     # one axis.
-    for i in range(X_x_dim):
-        for j in range(X_y_dim):
-            count = 0
-            for z in range(X_z_dim):
-                count += X_mv[i,j,z]
-            integral_counts[1+i,1+j] = integral_counts[1+i,j] + count
-    # Now accumulate the other axis
-    for j in range(X_y_dim):
+    for n in xrange(n_samples):
         for i in range(X_x_dim):
-            integral_counts[1+i,1+j] += integral_counts[i,1+j]
+            for j in range(X_y_dim):
+                count = 0
+                for z in range(X_z_dim):
+                    count += X_mv[n,i,j,z]
+                integral_counts[1+i,1+j] = integral_counts[1+i,j] + count
+        # Now accumulate the other axis
+        for j in range(X_y_dim):
+            for i in range(X_x_dim):
+                integral_counts[1+i,1+j] += integral_counts[i,1+j]
 
-    # Code parts
-    for i_start in range(X_x_dim-part_x_dim+1):
-        i_end = i_start + part_x_dim
-        for j_start in range(X_y_dim-part_y_dim+1):
-            j_end = j_start + part_y_dim
+        # Code parts
+        for i_start in range(X_x_dim-part_x_dim+1):
+            i_end = i_start + part_x_dim
+            for j_start in range(X_y_dim-part_y_dim+1):
+                j_end = j_start + part_y_dim
 
-            # Note, integral_counts is 1-based, to allow for a zero row/column at the zero:th index.
-            cx0 = i_start+i_frame
-            cx1 = i_end-i_frame
-            cy0 = j_start+i_frame
-            cy1 = j_end-i_frame
-            count = integral_counts[cx1, cy1] - \
-                    integral_counts[cx0, cy1] - \
-                    integral_counts[cx1, cy0] + \
-                    integral_counts[cx0, cy0]
+                # Note, integral_counts is 1-based, to allow for a zero row/column at the zero:th index.
+                cx0 = i_start+i_frame
+                cx1 = i_end-i_frame
+                cy0 = j_start+i_frame
+                cy1 = j_end-i_frame
+                count = integral_counts[cx1, cy1] - \
+                        integral_counts[cx0, cy1] - \
+                        integral_counts[cx1, cy0] + \
+                        integral_counts[cx0, cy0]
 
-            if threshold <= count:
-                vs[:] = constant_terms
-                #vs_alt[:] = constant_terms_alt
-                with nogil:
-                    for i in range(part_x_dim):
-                        for j in range(part_y_dim):
-                            for z in range(X_z_dim):
-                                if X_mv[i_start+i,j_start+j,z]:
-                                    for k in range(num_parts):
-                                        vs_mv[k] += part_logits_mv[i,j,z,k]
+                if threshold <= count:
+                    vs[:] = constant_terms
+                    #vs_alt[:] = constant_terms_alt
+                    with nogil:
+                        for i in range(part_x_dim):
+                            for j in range(part_y_dim):
+                                for z in range(X_z_dim):
+                                    if X_mv[n,i_start+i,j_start+j,z]:
+                                        for k in range(num_parts):
+                                            vs_mv[k] += part_logits_mv[i,j,z,k]
 
-                max_index = vs.argmax()
-                out_map_mv[i_start,j_start] = max_index
+                    max_index = vs.argmax()
+                    out_map_mv[n,i_start,j_start] = max_index
                 
 
     return out_map
