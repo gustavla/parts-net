@@ -121,7 +121,7 @@ def index_map_pooling(np.ndarray[ndim=3,dtype=np.int64_t] part_index_map,
 
     offset = subsample_offset_shape((part_index_map.shape[1], part_index_map.shape[2]), strides)
     cdef:
-        int sample_size = part_index_mpa.shape[0]
+        int sample_size = part_index_map.shape[0]
         int part_index_dim0 = part_index_map.shape[1]
         int part_index_dim1 = part_index_map.shape[2]
         int stride0 = strides[0]
