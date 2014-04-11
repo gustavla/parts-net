@@ -36,6 +36,9 @@ class PartsLayer(Layer):
         return code_index_map(X, weights, constants, th,
                               outer_frame=self._settings['outer_frame']) 
 
+    @property
+    def trained(self):
+        return self._parts is not None 
 
     def train(self, X):
         patches = self._get_patches(X)
@@ -45,7 +48,7 @@ class PartsLayer(Layer):
         #from pnet.latent_bernoulli_mm import LatentBernoulliMM
         from pnet.bernoullimm import BernoulliMM
 
-        mm = BernoulliMM(n_components=self._num_parts, n_iter=20, n_init=1)
+        mm = BernoulliMM(n_components=self._num_parts, n_iter=20, n_init=1, random_state=0)
         mm.fit(patches.reshape((patches.shape[0], -1)))
 
         #import pdb; pdb.set_trace()

@@ -11,3 +11,7 @@ class Layer(SaveableRegistry):
     def extract(self, X):
         raise NotImplemented("Subclass and override to use")
 
+    @property
+    def trained(self):
+        return True
+    
