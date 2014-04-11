@@ -4,6 +4,7 @@ import numpy as np
 import amitgroup as ag
 from pnet.layer import Layer
 
+@Layer.register('parts-net')
 class PartsNet(Layer):
     def __init__(self, layers):
         self._layers = layers
@@ -28,15 +29,18 @@ class PartsNet(Layer):
         d = {}
         d['layers'] = []
         for layer in self._layers:
-            d['layers'] = layer.save_to_dict() 
+            layer_dict = layer.save_to_dict()
+            layer_dict['name'] = layer.name
+            d['layers'].append(layer_dict)
 
+        print(d)
         return d
 
     @classmethod
-    def load_from_dict(self, d):
-        pass
-        #self._layers = []
-        #for layer_dict in d['layers']:
-            #layer = Layer.construct
-            #self._layers.append(layer)
-
+    def load_from_dict(cls, d):
+        layers = []
+        for layer_dict in d['layers']:
+            layer = Layer.getclass(layer_dict['name']).load_from_dict(layer_dict)
+            layers.append(layer)
+        obj = cls(layers)
+        return obj

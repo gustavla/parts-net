@@ -18,9 +18,10 @@ class PoolingLayer(Layer):
         d = {}
         d['shape'] = self._shape
         d['strides'] = self._strides
+        return d
 
     @classmethod
     def load_from_dict(cls, d):
-        obj = cls(d['shape'], d['srides'])
+        obj = cls(d['shape'], d['strides'])
         return obj
         

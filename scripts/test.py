@@ -3,7 +3,6 @@ from __future__ import division, print_function, absolute_import
 
 import numpy as np
 import amitgroup as ag
-import gv
 import os
 import pnet
 
@@ -19,9 +18,8 @@ def test(ims, labels, net, svc):
     return svc.predict(Z.reshape((Z.shape[0], -1))) == labels
 
 
-if gv.parallel.main(__name__): 
+if pnet.parallel.main(__name__): 
     import argparse
-    from gv.settings import load_settings, change_settings
 
     parser = argparse.ArgumentParser()
     #parser.add_argument('settings', metavar='<settings file>', type=argparse.FileType('r'), help='Filename of settings file')
@@ -46,7 +44,7 @@ if gv.parallel.main(__name__):
         return "{:.2f}%".format(100*(1-pr))
 
     print("Starting...")
-    for res in gv.parallel.starmap_unordered(test, args):
+    for res in pnet.parallel.starmap_unordered(test, args):
         corrects += res.sum()
         total += res.size
 

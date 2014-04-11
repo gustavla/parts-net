@@ -32,9 +32,6 @@ class PartsLayer(Layer):
         th = self._settings['threshold']
         part_logits = np.rollaxis(logit(self._parts).astype(np.float64), 0, 4)
         constant_terms = np.apply_over_axes(np.sum, np.log(1-self._parts).astype(np.float64), [1, 2, 3]).ravel()
-        print('ct', constant_terms)
-
-        print('pl', part_logits.shape)
 
         from pnet.cyfuncs import code_index_map
 
@@ -112,6 +109,7 @@ class PartsLayer(Layer):
 
         d['parts'] = self._parts
         d['weights'] = self._weights
+        return d
 
     @classmethod
     def load_from_dict(cls, d):

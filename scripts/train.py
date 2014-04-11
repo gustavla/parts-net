@@ -10,13 +10,13 @@ from sklearn.svm import LinearSVC
 net = pnet.PartsNet([
     pnet.PartsLayer(10, (5, 5), settings=dict(outer_frame=0, threshold=1, samples_per_image=15)),
     pnet.PoolingLayer(shape=(2, 2), strides=(2, 2)),
-    pnet.PartsLayer(20, (4, 4), settings=dict(outer_frame=1, threshold=1, samples_per_image=20)),
+    pnet.PartsLayer(20, (2, 2), settings=dict(outer_frame=1, threshold=1, samples_per_image=4)),
     pnet.PoolingLayer(shape=(3, 3), strides=(3, 3)),
 ])
 
 digits = range(10)
 
-ims = ag.io.load_mnist('training', selection=slice(2000), return_labels=False)
+ims = ag.io.load_mnist('training', selection=slice(5000), return_labels=False)
 
 X = ag.features.bedges(ims, k=5, radius=1, spread='orthogonal', minimum_contrast=0.05) 
 
@@ -41,6 +41,7 @@ labels = np.concatenate(labels, axis=0)
 svc = LinearSVC()
 svc.fit(YY, labels)
 
+net.save('parts-net.npy')
 np.save('svc.npy', svc)
 
 #X = (X[...,np.newaxis] > 0.5).astype(np.uint8)
