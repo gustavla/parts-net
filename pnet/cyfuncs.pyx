@@ -114,15 +114,16 @@ def code_index_map(np.ndarray[ndim=4,dtype=np.uint8_t] X,
 
     return out_map
 
-def index_map_pooling(np.ndarray[ndim=2,dtype=np.int64_t] part_index_map, 
+def index_map_pooling(np.ndarray[ndim=3,dtype=np.int64_t] part_index_map, 
             int num_parts,
             pooling_shape,
             strides):
 
-    offset = subsample_offset_shape((part_index_map.shape[0], part_index_map.shape[1]), strides)
+    offset = subsample_offset_shape((part_index_map.shape[1], part_index_map.shape[2]), strides)
     cdef:
-        int part_index_dim0 = part_index_map.shape[0]
-        int part_index_dim1 = part_index_map.shape[1]
+        int sample_size = part_index_mpa.shape[0]
+        int part_index_dim0 = part_index_map.shape[1]
+        int part_index_dim1 = part_index_map.shape[2]
         int stride0 = strides[0]
         int stride1 = strides[1]
         int pooling0 = pooling_shape[0]
@@ -136,26 +137,30 @@ def index_map_pooling(np.ndarray[ndim=2,dtype=np.int64_t] part_index_map,
         int feat_dim0 = part_index_dim0//stride0
         int feat_dim1 = part_index_dim1//stride1
 
-        np.ndarray[np.uint8_t,ndim=3] feature_map = np.zeros((feat_dim0,
+        np.ndarray[np.uint8_t,ndim=4] feature_map = np.zeros((sample_size,
+                                                              feat_dim0,
                                                               feat_dim1,
                                                               num_parts),
                                                               dtype=np.uint8)
-        np.int64_t[:,:] part_index_mv = part_index_map 
-        np.uint8_t[:,:,:] feat_mv = feature_map 
+        np.int64_t[:,:,:] part_index_mv = part_index_map 
+        np.uint8_t[:,:,:,:] feat_mv = feature_map 
 
 
-        int p, x, y, i, j, i0, j0
+        int p, x, y, i, j, n,i0, j0
 
 
     with nogil:
-        for i in range(feat_dim0):
-            for j in range(feat_dim1):
-                x = offset0 + i*stride0 - half_pooling0
-                y = offset1 + j*stride1 - half_pooling1
-                for i0 in range(int_max(x, 0), int_min(x + pooling0+1, part_index_dim0)):
-                    for j0 in range(int_max(y, 0), int_min(y + pooling1+1, part_index_dim1)):
-                        p = part_index_mv[i0,j0]
-                        if p != -1:
-                            feat_mv[i,j,p] = 1
-
+         for n in range(sample_size): 
+            for i in range(feat_dim0):
+                for j in range(feat_dim1):
+                    x = offset0 + i*stride0 - half_pooling0
+                    y = offset1 + j*stride1 - half_pooling1
+                    for i0 in range(int_max(x, 0), int_min(x + pooling0+1, part_index_dim0)):
+                        for j0 in range(int_max(y, 0), int_min(y + pooling1+1, part_index_dim1)):
+                            p = part_index_mv[n,i0,j0]
+                            if p != -1:
+                                feat_mv[n,i,j,p] = 1
+     
+     
+      
     return feature_map 
