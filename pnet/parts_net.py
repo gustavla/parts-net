@@ -1,5 +1,6 @@
 from __future__ import division, print_function, absolute_import 
 
+import numpy as np
 import amitgroup as ag
 from pnet.layer import Layer
 
@@ -12,6 +13,7 @@ class PartsNet(Layer):
         for l, layer in enumerate(self._layers):
             if not layer.trained:
                 layer.train(curX)
+            layer.TMP_output_shape = repr(curX) 
             ag.info('Training layer {}... Done.'.format(l))
             curX = layer.extract(curX) 
 

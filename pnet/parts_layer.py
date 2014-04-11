@@ -37,9 +37,10 @@ class PartsLayer(Layer):
         print('pl', part_logits.shape)
 
         from pnet.cyfuncs import code_index_map
-        return code_index_map(X, part_logits, constant_terms, th,
-                              outer_frame=self._settings['outer_frame'])
 
+        feature_map = code_index_map(X, part_logits, constant_terms, th,
+                                     outer_frame=self._settings['outer_frame'])
+        return (self._num_parts, feature_map)
     @property
     def trained(self):
         return self._parts is not None 
@@ -78,12 +79,16 @@ class PartsLayer(Layer):
             # TODO: Maybe shuffle an iterator of the indices?
             indices = list(itr.product(xrange(w-1), xrange(h-1)))
             rs.shuffle(indices)
+            #i_iter = itr.cycle(iter(indices))
             i_iter = iter(indices)
 
             for sample in xrange(samples_per_image):
                 for tries in xrange(50):
                     #x, y = random.randint(0, w-1), random.randint(0, h-1)
-                    x, y = i_iter.next()
+                    try:
+                        x, y = i_iter.next()
+                    except StopIteration:
+                        raise Exception('samples_per_image set higher than possible samples')
                     selection = [slice(x, x+self._part_shape[0]), slice(y, y+self._part_shape[1])]
 
                     patch = Xi[selection]

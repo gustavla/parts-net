@@ -15,3 +15,7 @@ class Layer(SaveableRegistry):
     def trained(self):
         return True
     
+    #@property(self):
+    #def output_shape(self):
+        #raise NotImplemented("Subclass and override to use")
+
