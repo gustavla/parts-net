@@ -13,9 +13,10 @@ class PartsNet(Layer):
         curX = X
         for l, layer in enumerate(self._layers):
             if not layer.trained:
+                ag.info('Training layer {}...'.format(l))
                 layer.train(curX)
+                ag.info('Done.')
 
-            ag.info('Training layer {}... Done.'.format(l))
             curX = layer.extract(curX) 
 
             if isinstance(curX, tuple):

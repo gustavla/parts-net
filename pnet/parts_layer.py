@@ -43,15 +43,18 @@ class PartsLayer(Layer):
         return self._parts is not None 
 
     def train(self, X):
+        ag.info('Extracting patches')
         patches = self._get_patches(X)
+        ag.info('Done extracting patches')
         ag.info('Training patches', patches.shape)
         return self.train_from_samples(patches)
 
     def train_from_samples(self, patches):
         #from pnet.latent_bernoulli_mm import LatentBernoulliMM
         from pnet.bernoullimm import BernoulliMM
+        min_prob = self._settings.get('min_prob', 0.01)
 
-        mm = BernoulliMM(n_components=self._num_parts, n_iter=20, n_init=1, random_state=0, min_prob=self._settings.get('min_prob', 0.01))
+        mm = BernoulliMM(n_components=self._num_parts, n_iter=1000, tol=1e-15,n_init=4, random_state=0, min_prob=min_prob)
         mm.fit(patches.reshape((patches.shape[0], -1)))
 
         #import pdb; pdb.set_trace()
@@ -80,7 +83,8 @@ class PartsLayer(Layer):
             i_iter = itr.cycle(iter(indices))
 
             for sample in xrange(samples_per_image):
-                for tries in xrange(50):
+                N = 200
+                for tries in xrange(N):
                     x, y = i_iter.next()
                     selection = [slice(x, x+self._part_shape[0]), slice(y, y+self._part_shape[1])]
 
@@ -97,6 +101,8 @@ class PartsLayer(Layer):
                             return np.asarray(patches)
                         break
 
+                    if tries == N-1:
+                        ag.info('WARNING: {} tries'.format(N))
 
         return np.asarray(patches)
 

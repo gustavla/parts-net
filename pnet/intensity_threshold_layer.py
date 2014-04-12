@@ -13,7 +13,7 @@ class IntensityThresholdLayer(Layer):
         return (X > 0.5).astype(np.uint8)[...,np.newaxis] 
 
     def save_to_dict(self):
-        return dict(thresholdl=d['threshold']) 
+        return dict(threshold=self._threshold) 
 
     @classmethod
     def load_from_dict(cls, d):
