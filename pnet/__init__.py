@@ -1,5 +1,8 @@
 
 from layer import Layer
+
+from intensity_threshold_layer import IntensityThresholdLayer
+from edge_layer import EdgeLayer
 from pooling_layer import PoolingLayer
 from parts_layer import PartsLayer
 from parts_net import PartsNet

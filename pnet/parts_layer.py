@@ -3,6 +3,7 @@ from __future__ import division, print_function, absolute_import
 from scipy.special import logit
 import numpy as np
 import itertools as itr
+import amitgroup as ag
 from pnet.layer import Layer
 
 # TODO: Use later
@@ -14,7 +15,6 @@ if 0:
 
 @Layer.register('parts-layer')
 class PartsLayer(Layer):
-
     def __init__(self, num_parts, part_shape, settings={}):
         #, outer_frame=1, threshold=1):
         self._num_parts = num_parts
@@ -44,13 +44,14 @@ class PartsLayer(Layer):
 
     def train(self, X):
         patches = self._get_patches(X)
+        ag.info('Training patches', patches.shape)
         return self.train_from_samples(patches)
 
     def train_from_samples(self, patches):
         #from pnet.latent_bernoulli_mm import LatentBernoulliMM
         from pnet.bernoullimm import BernoulliMM
 
-        mm = BernoulliMM(n_components=self._num_parts, n_iter=20, n_init=1, random_state=0)
+        mm = BernoulliMM(n_components=self._num_parts, n_iter=20, n_init=1, random_state=0, min_prob=self._settings.get('min_prob', 0.01))
         mm.fit(patches.reshape((patches.shape[0], -1)))
 
         #import pdb; pdb.set_trace()
@@ -92,7 +93,10 @@ class PartsLayer(Layer):
 
                     if th <= tot: 
                         patches.append(patch)
+                        if len(patches) >= self._settings.get('max_samples', np.inf):
+                            return np.asarray(patches)
                         break
+
 
         return np.asarray(patches)
 

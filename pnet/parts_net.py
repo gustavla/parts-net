@@ -14,16 +14,20 @@ class PartsNet(Layer):
         for l, layer in enumerate(self._layers):
             if not layer.trained:
                 layer.train(curX)
-            layer.TMP_output_shape = repr(curX) 
+
             ag.info('Training layer {}... Done.'.format(l))
             curX = layer.extract(curX) 
+
+            if isinstance(curX, tuple):
+                layer.TMP_output_shape = curX[1].shape
+            else:
+                layer.TMP_output_shape = curX.shape
 
     def extract(self, X):
         curX = X
         for layer in self._layers:
             curX = layer.extract(curX) 
         return curX
-
 
     def save_to_dict(self):
         d = {}
@@ -33,7 +37,6 @@ class PartsNet(Layer):
             layer_dict['name'] = layer.name
             d['layers'].append(layer_dict)
 
-        print(d)
         return d
 
     @classmethod
