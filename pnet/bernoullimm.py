@@ -47,7 +47,7 @@ def sample_bernoulli(mean, n_samples=1,
     if n_samples == 1:
         rand.shape = (n_dim,)
 
-    return (rand.T > mean).T.astype(data_type)
+    return (rand.T < mean).T.astype(data_type)
 
 
 
