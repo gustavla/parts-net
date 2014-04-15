@@ -9,6 +9,10 @@ class PartsNet(Layer):
     def __init__(self, layers):
         self._layers = layers
 
+    @property
+    def layers(self):
+        return self._layers
+
     def train(self, X):
         curX = X
         for l, layer in enumerate(self._layers):
@@ -29,6 +33,18 @@ class PartsNet(Layer):
         for layer in self._layers:
             curX = layer.extract(curX) 
         return curX
+
+    def infoplot(self, vz):
+        vz.title('Layers')
+
+        vz.text('Layer shapes')
+        for i, layer in enumerate(self.layers):
+            vz.log(i, layer.TMP_output_shape)
+
+        # Plot some information
+        for i, layer in enumerate(self.layers):
+            vz.section('Layer #{} : {}'.format(i, layer.name))
+            layer.infoplot(vz)
 
     def save_to_dict(self):
         d = {}

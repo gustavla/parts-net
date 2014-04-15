@@ -1,52 +1,57 @@
 from __future__ import division, print_function, absolute_import 
+
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument('--log', action='store_true')
+
+args = parser.parse_args()
+
+if args.log:
+    from pnet.vzlog import default as vz
 import numpy as np
 import amitgroup as ag
+import sys
 ag.set_verbose(True)
 
 from pnet.bernoullimm import BernoulliMM
 import pnet
 from sklearn.svm import LinearSVC 
 
-# Example of how to define the model
-if 1:
-    image_layer = [
-        pnet.IntensityThresholdLayer(threshold=0.5),
-        pnet.PartsLayer(10, (2, 2), settings=dict(outer_frame=0, 
-                                                  threshold=1, 
-                                                  samples_per_image=200, 
-                                                  max_samples=100000, 
-                                                  min_prob=0.001)),
-        pnet.PoolingLayer(shape=(3, 3), strides=(1, 1)),
-    ]
-else:
-    image_layer = [
-        pnet.EdgeLayer(k=5, radius=1, spread='box', minimum_contrast=0.05),
-    ]
 
-
-layers = image_layer 
-
-layers += [
-    pnet.PartsLayer(100, (5, 5), settings=dict(outer_frame=1, 
-                                              threshold=15, 
+layers = [
+    pnet.EdgeLayer(k=5, radius=1, spread='orthogonal', minimum_contrast=0.05),
+    pnet.PartsLayer(30, (3, 3), settings=dict(outer_frame=0, 
+                                              threshold=6, 
                                               samples_per_image=40, 
                                               max_samples=50000, 
                                               min_prob=0.0005)),
+    pnet.PoolingLayer(shape=(4, 4), strides=(2, 2)),
+] # +
+[
+    pnet.PartsLayer(400, (2, 2), settings=dict(outer_frame=0, 
+                                              threshold=10, 
+                                              samples_per_image=40, 
+                                              max_samples=50000, 
+                                              min_prob=0.0005,
+                                              min_llh=-40
+                                              )),
     pnet.PoolingLayer(shape=(4, 4), strides=(4, 4)),
 ]
 
 net = pnet.PartsNet(layers)
 
-    #pnet.PartsLayer(20, (1, 1), settings=dict(outer_frame=0, threshold=1, samples_per_image=100)),
-    #pnet.PoolingLayer(shape=(2, 2), strides=(2, 2)),
-
 digits = range(10)
-
 ims = ag.io.load_mnist('training', selection=slice(10000), return_labels=False)
 
 #print(net.sizes(X[[0]]))
 
 net.train(ims)
+
+X = net.extract(ims)
+#print('X mean', X.mean())
+#print('X', np.apply_over_axes(np.mean, X, [0, 1, 2]).ravel())
+
+print('weights', net._layers[1]._weights)
 
 YY = []
 labels = []
@@ -83,12 +88,6 @@ else:
 
 net.save('parts-net.npy')
 
-#X = (X[...,np.newaxis] > 0.5).astype(np.uint8)
-
-
-#z = net.extract_features(X)
-
-print("Layers")
-for i, layer in enumerate(net._layers):
-    print(i, layer.TMP_output_shape)
-
+if args.log:
+    net.infoplot(vz)
+    vz.finalize()

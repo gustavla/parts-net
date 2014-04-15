@@ -11,8 +11,8 @@ class PoolingLayer(Layer):
 
     def extract(self, F_X):
         F, X = F_X 
-        from pnet.cyfuncs import index_map_pooling
-        return index_map_pooling(X, F, self._shape, self._strides) 
+        from pnet.cyfuncs import index_map_pooling_multi
+        return index_map_pooling_multi(X, F, self._shape, self._strides) 
 
     def save_to_dict(self):
         d = {}

@@ -14,6 +14,9 @@ class Layer(SaveableRegistry):
     @property
     def trained(self):
         return True
+
+    def infoplot(self, vz):
+        pass
     
     #@property(self):
     #def output_shape(self):
