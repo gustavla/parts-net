@@ -4,7 +4,7 @@ from .saveable import SaveableRegistry
 
 @SaveableRegistry.root
 class Layer(SaveableRegistry):
-    def train(self, X):
+    def train(self, X, Y=None):
         pass 
 
     def extract(self, X):
@@ -14,10 +14,26 @@ class Layer(SaveableRegistry):
     def trained(self):
         return True
 
+    @property
+    def supervised(self):
+        return False
+
+    @property
+    def classifier(self):
+        return False
+
     def infoplot(self, vz):
         pass
     
     #@property(self):
     #def output_shape(self):
         #raise NotImplemented("Subclass and override to use")
+    
 
+class UnsupervisedLayer(Layer):
+    pass
+
+class SupervisedLayer(Layer):
+    @property
+    def supervised(self):
+        return True

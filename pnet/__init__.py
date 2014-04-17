@@ -6,6 +6,8 @@ from .edge_layer import EdgeLayer
 from .pooling_layer import PoolingLayer
 from .parts_layer import PartsLayer
 from .parts_net import PartsNet
+from .mixture_classification_layer import MixtureClassificationLayer
+from .svm_classification_layer import SVMClassificationLayer
 from . import plot
 
 try:

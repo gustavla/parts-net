@@ -14,13 +14,16 @@ class PartsNet(Layer):
     def layers(self):
         return self._layers
 
-    def train(self, X):
+    def train(self, X, Y=None):
         curX = X
         shapes = []
         for l, layer in enumerate(self._layers):
+            if not (not layer.supervised or (layer.supervised and Y is not None)):
+                break
+
             if not layer.trained:
                 ag.info('Training layer {}...'.format(l))
-                layer.train(curX)
+                layer.train(curX, Y=Y)
                 ag.info('Done.')
 
             curX = layer.extract(curX) 
@@ -32,11 +35,19 @@ class PartsNet(Layer):
             shapes.append(sh)
 
         self._train_info['shapes'] = shapes
+
+    def test(self, X, Y):
+        Yhat = self.extract(X)
+        return Yhat == Y
+
+    def classify(self, X):
+        return self.extract(X, classify=True)
     
-    def extract(self, X):
+    def extract(self, X, classify=False):
         curX = X
         for layer in self._layers:
-            curX = layer.extract(curX) 
+            if not layer.classifier or classify:
+                curX = layer.extract(curX) 
         return curX
 
     def infoplot(self, vz):

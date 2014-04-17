@@ -8,4 +8,4 @@ starmap_unordered = itr.starmap
 starmap = itr.starmap
 
 def main(name=None):
-    return name != '__main__':
+    return name == '__main__'

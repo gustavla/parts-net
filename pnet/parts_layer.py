@@ -52,7 +52,8 @@ class PartsLayer(Layer):
     def trained(self):
         return self._parts is not None 
 
-    def train(self, X):
+    def train(self, X, Y=None):
+        assert Y is None
         ag.info('Extracting patches')
         patches = self._get_patches(X)
         ag.info('Done extracting patches')
