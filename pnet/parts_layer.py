@@ -27,6 +27,7 @@ class PartsLayer(Layer):
         #self._outer_frame = outer_frame
         #self._threshold = threshold
         self._settings = settings
+        self._train_info = {}
 
         self._parts = None
         self._weights = None
@@ -45,7 +46,8 @@ class PartsLayer(Layer):
                                            min_llh=self._settings.get('min_llh', -np.inf),
                                            n_coded=self._settings.get('n_coded', 1))
 
-        return (self._num_parts, feature_map)
+
+        return (feature_map, self._num_parts)
     @property
     def trained(self):
         return self._parts is not None 
@@ -133,6 +135,16 @@ class PartsLayer(Layer):
             self._parts = mm.templates.reshape((self._num_parts,)+patches.shape[1:])
             self._weights = mm.weights
 
+        # Calculate entropy of parts
+        Hall = (self._parts * np.log(self._parts) + (1 - self._parts) * np.log(1 - self._parts))
+        H = -np.apply_over_axes(np.mean, Hall, [1, 2, 3])[:,0,0,0]
+
+        # Sort by entropy
+        II = np.argsort(H)
+
+        self._parts[:] = self._parts[II]
+        self._train_info['entropy'] = H[II]
+
     def _get_patches(self, X):
         assert X.ndim == 4
 
@@ -187,13 +199,44 @@ class PartsLayer(Layer):
 
         print('SHAPE', self._parts.shape)
 
+        cdict1 = {'red':  ((0.0, 0.0, 0.0),
+                           (0.5, 0.0, 0.0),
+                           (1.0, 1.0, 1.0)),
+
+                 'green': ((0.0, 0.4, 0.4),
+                           (0.5, 0.0, 0.0),
+                           (1.0, 1.0, 1.0)),
+
+                 'blue':  ((0.0, 1.0, 1.0),
+                           (0.5, 0.0, 0.0),
+                           (1.0, 0.4, 0.4))
+                }
+
+        from matplotlib.colors import LinearSegmentedColormap
+        C = LinearSegmentedColormap('BlueRed1', cdict1)
+
         for i in xrange(N):
             for j in xrange(D):
-                grid.set_image(self._parts[i,...,j], i, j, cmap=cm.RdBu_r)
+                grid.set_image(self._parts[i,...,j], i, j, cmap=C)#cm.BrBG)
 
         grid.save(vz.generate_filename(), scale=5)
 
-        vz.log('weights:', self._weights)
+        #vz.log('weights:', self._weights)
+        #vz.log('entropy', self._train_info['entropy'])
+
+        import pylab as plt
+        plt.figure(figsize=(6, 3))
+        plt.plot(self._weights, label='weight')
+        plt.savefig(vz.generate_filename(ext='svg'))
+
+        vz.log('weights span', self._weights.min(), self._weights.max()) 
+
+        import pylab as plt
+        plt.figure(figsize=(6, 3))
+        plt.plot(self._train_info['entropy'])
+        plt.savefig(vz.generate_filename(ext='svg'))
+
+        vz.log('median entropy', np.median(self._train_info['entropy']))
 
     def save_to_dict(self):
         d = {}

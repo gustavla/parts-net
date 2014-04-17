@@ -129,7 +129,7 @@ class VzLog(object):
         self._counter += 1
         
         #self._output_html('<p class="title">' + title + '</p>')
-        self._output_html('<img src="{}" />'.format(fn))
+        self._output_surrounding_html('<div>', '</div>', '<img src="{}" />'.format(fn))
 
         self.register_filename(os.path.join(self._get_root(), fn))
         # The file won't exist yet, but this can still update older files

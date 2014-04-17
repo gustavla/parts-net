@@ -19,23 +19,25 @@ from sklearn.svm import LinearSVC
 
 
 layers = [
+    #pnet.IntensityThresholdLayer(),
     pnet.EdgeLayer(k=5, radius=1, spread='orthogonal', minimum_contrast=0.05),
-    pnet.PartsLayer(30, (3, 3), settings=dict(outer_frame=0, 
-                                              threshold=6, 
+    #pnet.IntensityThresholdLayer(),
+    pnet.PartsLayer(40, (3, 3), settings=dict(outer_frame=0, 
+                                              threshold=8, 
                                               samples_per_image=40, 
-                                              max_samples=50000, 
+                                              max_samples=10000, 
                                               min_prob=0.0005)),
-    pnet.PoolingLayer(shape=(4, 4), strides=(2, 2)),
-] # +
-[
-    pnet.PartsLayer(400, (2, 2), settings=dict(outer_frame=0, 
-                                              threshold=10, 
-                                              samples_per_image=40, 
-                                              max_samples=50000, 
+    pnet.PoolingLayer(shape=(3, 3), strides=(1, 1)),
+] + [
+    pnet.PartsLayer(100, (2, 2), settings=dict(outer_frame=0,
+                                              threshold=5,
+                                              samples_per_image=40,
+                                              max_samples=10000,
                                               min_prob=0.0005,
-                                              min_llh=-40
+                                              min_llh=-40,
+                                              n_coded=1
                                               )),
-    pnet.PoolingLayer(shape=(4, 4), strides=(4, 4)),
+    pnet.PoolingLayer(shape=(4, 4), strides=(2, 2)),
 ]
 
 net = pnet.PartsNet(layers)
@@ -50,8 +52,6 @@ net.train(ims)
 X = net.extract(ims)
 #print('X mean', X.mean())
 #print('X', np.apply_over_axes(np.mean, X, [0, 1, 2]).ravel())
-
-print('weights', net._layers[1]._weights)
 
 YY = []
 labels = []

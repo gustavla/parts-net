@@ -4,7 +4,6 @@ from .saveable import SaveableRegistry
 
 @SaveableRegistry.root
 class Layer(SaveableRegistry):
-
     def train(self, X):
         pass 
 

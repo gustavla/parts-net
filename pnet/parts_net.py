@@ -8,6 +8,7 @@ from pnet.layer import Layer
 class PartsNet(Layer):
     def __init__(self, layers):
         self._layers = layers
+        self._train_info = {}
 
     @property
     def layers(self):
@@ -15,6 +16,7 @@ class PartsNet(Layer):
 
     def train(self, X):
         curX = X
+        shapes = []
         for l, layer in enumerate(self._layers):
             if not layer.trained:
                 ag.info('Training layer {}...'.format(l))
@@ -24,10 +26,13 @@ class PartsNet(Layer):
             curX = layer.extract(curX) 
 
             if isinstance(curX, tuple):
-                layer.TMP_output_shape = curX[1].shape
+                sh = curX[0].shape[1:-1] + (curX[1],)
             else:
-                layer.TMP_output_shape = curX.shape
+                sh = curX.shape[1:]
+            shapes.append(sh)
 
+        self._train_info['shapes'] = shapes
+    
     def extract(self, X):
         curX = X
         for layer in self._layers:
@@ -38,8 +43,8 @@ class PartsNet(Layer):
         vz.title('Layers')
 
         vz.text('Layer shapes')
-        for i, layer in enumerate(self.layers):
-            vz.log(i, layer.TMP_output_shape)
+        for i, (layer, shape) in enumerate(zip(self.layers, self._train_info['shapes'])):
+            vz.log(i, shape, layer.name)
 
         # Plot some information
         for i, layer in enumerate(self.layers):

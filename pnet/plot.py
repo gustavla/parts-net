@@ -1,6 +1,6 @@
 from __future__ import division
 import numpy as np
-import gv
+import pnet.img
 #from scipy.ndimage.interpolation import zoom
 
 class ImageGrid(object):
@@ -31,7 +31,7 @@ class ImageGrid(object):
         if vmax is None:
             vmax = image.max()
 
-        from gv.fast import resample_and_arrange_image
+        from pnet.cyfuncs import resample_and_arrange_image
 
         if vmin == vmax:
             diff = 1
@@ -56,4 +56,4 @@ class ImageGrid(object):
         if scale != 1:
             from skimage.transform import resize
             data = resize(self._data, tuple([self._data.shape[i] * scale for i in xrange(2)]), order=0)
-        gv.img.save_image(path, data)
+        pnet.img.save_image(path, data)
