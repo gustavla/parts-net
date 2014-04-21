@@ -35,7 +35,6 @@ class MixtureClassificationLayer(SupervisedLayer):
         mm_models = []
         for k in xrange(K):
             Xk = X[Y == k]
-            import pdb ; pdb.set_trace()
             Xk = Xk.reshape((Xk.shape[0], -1))
             mm = BernoulliMM(n_components=self._n_components, n_iter=10, n_init=1, random_state=0, min_prob=self._min_prob)
             mm.fit(Xk)
@@ -55,3 +54,7 @@ class MixtureClassificationLayer(SupervisedLayer):
         obj = cls(n_components=d['n_components'], min_prob=d['min_prob'])
         obj._models = d['models']
         return obj
+
+
+    def __repr__(self):
+        return 'MixtureClassificationLayer(n_components={})'.format(self._n_components)

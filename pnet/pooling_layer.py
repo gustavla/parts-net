@@ -6,17 +6,26 @@ import numpy as np
 @Layer.register('pooling-layer')
 class PoolingLayer(Layer):
 
-    def __init__(self, shape=(1, 1), strides=(1, 1)):
+    def __init__(self, shape=(1, 1), strides=(1, 1), settings={}):
         self._shape = shape
         self._strides = strides
+        self._settings = settings
         self._extract_info = {}
 
     def extract(self, X_F):
         X, F = X_F 
-        from pnet.cyfuncs import index_map_pooling_multi
 
+        #if X.ndim == 3:
+            #from pnet.cyfuncs import index_map_pooling as poolf
+        #else:
 
-        feature_map = index_map_pooling_multi(X, F, self._shape, self._strides) 
+        support_mask = self._settings.get('support_mask')
+        if support_mask is not None:
+            from pnet.cyfuncs import index_map_pooling_multi_support as poolf
+            feature_map = poolf(X, support_mask.astype(np.uint8), F, self._shape, self._strides) 
+        else:
+            from pnet.cyfuncs import index_map_pooling_multi as poolf
+            feature_map = poolf(X, F, self._shape, self._strides) 
 
         self._extract_info['concentration'] = np.apply_over_axes(np.mean, feature_map, [0, 1, 2])[0,0,0]
         return feature_map
@@ -48,4 +57,10 @@ class PoolingLayer(Layer):
     def load_from_dict(cls, d):
         obj = cls(d['shape'], d['strides'])
         return obj
-        
+
+    def __repr__(self):
+        return 'PoolingLayer(shape={shape}, strides={strides}, has_support_mask={has_support_mask})'.format(
+                    shape=self._shape,
+                    strides=self._strides,
+                    has_support_mask='support_mask' in self._settings,
+                    settings=self._settings)

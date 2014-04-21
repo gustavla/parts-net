@@ -21,3 +21,5 @@ class EdgeLayer(Layer):
         obj = cls(**d['edge_settings'])       
         return obj
 
+    def __repr__(self):
+        return 'EdgeLayer(bedges_settings={})'.format(self._edge_settings)

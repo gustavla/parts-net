@@ -29,7 +29,7 @@ class PartsNet(Layer):
             curX = layer.extract(curX) 
 
             if isinstance(curX, tuple):
-                sh = curX[0].shape[1:-1] + (curX[1],)
+                sh = curX[0].shape[1:3] + (curX[1],)
             else:
                 sh = curX.shape[1:]
             shapes.append(sh)

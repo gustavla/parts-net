@@ -28,6 +28,11 @@ class PartsLayer(Layer):
         #self._threshold = threshold
         self._settings = settings
         self._train_info = {}
+        self._keypoints = None
+
+
+        #TODO Temporary
+        self._min_llhs = None
 
         self._parts = None
         self._weights = None
@@ -36,17 +41,22 @@ class PartsLayer(Layer):
         assert self._parts is not None, "Must be trained before calling extract"
 
         th = self._settings['threshold']
-        part_logits = np.rollaxis(logit(self._parts).astype(np.float64), 0, 4)
-        constant_terms = np.apply_over_axes(np.sum, np.log(1-self._parts).astype(np.float64), [1, 2, 3]).ravel()
+        n_coded = self._settings.get('n_coded', 1)
+        
+        support_mask = self._settings.get('support_mask')
+        if support_mask is None:
+            support_mask = np.ones(self._part_shape, dtype=np.bool)
 
-        from pnet.cyfuncs import code_index_map_multi
-
-        feature_map = code_index_map_multi(X, part_logits, constant_terms, th,
-                                           outer_frame=self._settings['outer_frame'], 
-                                           min_llh=self._settings.get('min_llh', -np.inf),
-                                           n_coded=self._settings.get('n_coded', 1))
-
-
+        from pnet.cyfuncs import code_index_map_general
+        feature_map = code_index_map_general(X, 
+                                             self._parts, 
+                                             support_mask.astype(np.uint8),
+                                             th,
+                                             outer_frame=self._settings['outer_frame'], 
+                                             n_coded=n_coded,
+                                             standardize=self._settings.get('standardize', 0),
+                                             min_percentile=self._settings.get('min_percentile', 0.0))
+        
         return (feature_map, self._num_parts)
     @property
     def trained(self):
@@ -65,97 +75,64 @@ class PartsLayer(Layer):
         from pnet.bernoullimm import BernoulliMM
         min_prob = self._settings.get('min_prob', 0.01)
 
-        flatpatches = patches.reshape((patches.shape[0], -1))
-
-        if 1:
-            mm = BernoulliMM(n_components=self._num_parts, n_iter=20, tol=1e-15,n_init=2, random_state=0, min_prob=min_prob, verbose=False)
-            print(mm.fit(flatpatches))
-            print('AIC', mm.aic(flatpatches))
-            print('BIC', mm.bic(flatpatches))
-
-            if 0:
-                # Draw samples
-                #size = (20, 20)
-                import gv
-                import os
-                N = 10000
-                D = np.prod(self._part_shape)
-                size = (20, 20)
-                grid = gv.plot.ImageGrid(size[0], size[1], self._part_shape)
-                samp = mm.sample(n_samples=np.prod(size)).reshape((-1,) + self._part_shape)
-                samples = mm.sample(n_samples=N).reshape((-1,) + self._part_shape)
-                print('samples', samples.shape)
-
-                types = np.asarray(list(gv.multirange(*[2]*D))).reshape((-1,) + self._part_shape)
-                th = np.clip(types, 0.01, 0.99)
-
-                t = th[:,np.newaxis]
-                x = samples[np.newaxis]
-
-                llh0 = x * np.log(t) + (1 - x) * np.log(1 - t)
-                counts0 = np.bincount(np.argmax(llh0.sum(-1).sum(-1), 0), minlength=th.shape[0])
-                
-                x1 = patches[np.newaxis,...,0]
-                llh1 = x1 * np.log(t) + (1 - x1) * np.log(1 - t)
-                counts1 = np.bincount(np.argmax(llh1.sum(-1).sum(-1), 0), minlength=th.shape[0])
-
-                #import pdb; pdb.set_trace()
-
-                w0 = counts0 / counts0.sum()
-                w1 = counts1 / counts1.sum()
-
-                print('w0', w0)
-                print('w1', w1) 
-                #import pdb; pdb.set_trace()
-
-                import pylab as plt    
-
-                plt.figure(figsize=(30, 4))
-                plt.plot(w0, label='sampled')
-                plt.plot(w1, label='natural')
-                plt.legend()
-                fn = '/home/larsson/html/plot3.png'
-                plt.savefig(fn) 
-                os.chmod(fn, 0644) 
-
-                c = 0
-                for i, j in gv.multirange(*size):
-                    grid.set_image(samp[c], i, j)
-                    c += 1
-
-                fn = '/home/larsson/html/plot2.png'
-                grid.save(fn, scale=10)
-                os.chmod(fn, 0644) 
-
-            #import pdb; pdb.set_trace()
-            self._parts = mm.means_.reshape((self._num_parts,)+patches.shape[1:])
-            self._weights = mm.weights_
+        support_mask = self._settings.get('support_mask')
+        if support_mask is not None:
+            kp_patches = patches[:,support_mask]
         else:
-            mm = ag.stats.BernoulliMixture(self._num_parts, flatpatches, max_iter=2000)
-            mm.run_EM(1e-6, min_probability=min_prob)
-            self._parts = mm.templates.reshape((self._num_parts,)+patches.shape[1:])
-            self._weights = mm.weights
+            kp_patches = patches.reshape((patches.shape[0], -1, patches.shape[-1]))
+
+        if self._settings.get('kp') == 'funky':
+            patches = patches[:,::2,::2]
+
+            # Only patches above the threshold
+            print('patches', patches.shape)
+            patches = patches[np.apply_over_axes(np.sum, patches.astype(np.int64), [1, 2, 3]).ravel() >= self._settings['threshold']]
+            print('patches', patches.shape)
+
+        flatpatches = kp_patches.reshape((kp_patches.shape[0], -1))
+
+        mm = BernoulliMM(n_components=self._num_parts, 
+                         n_iter=20, 
+                         tol=1e-15,
+                         n_init=2, 
+                         random_state=self._settings.get('em_seed', 0), 
+                         min_prob=min_prob, 
+                         verbose=False)
+        mm.fit(flatpatches)
+
+        Hall = (mm.means_ * np.log(mm.means_) + (1 - mm.means_) * np.log(1 - mm.means_))
+        H = -Hall.mean(-1)
+
+        if support_mask is not None:
+            self._parts = 0.5 * np.ones((self._num_parts,) + patches.shape[1:])
+            self._parts[:,support_mask] = mm.means_.reshape((self._parts.shape[0], -1, self._parts.shape[-1]))
+        else:
+            self._parts = mm.means_.reshape((self._num_parts,)+patches.shape[1:])
+        self._weights = mm.weights_
 
         # Calculate entropy of parts
-        Hall = (self._parts * np.log(self._parts) + (1 - self._parts) * np.log(1 - self._parts))
-        H = -np.apply_over_axes(np.mean, Hall, [1, 2, 3])[:,0,0,0]
 
         # Sort by entropy
         II = np.argsort(H)
 
-        self._parts[:] = self._parts[II]
+        self._parts = self._parts[II]
+
+        self._num_parts = II.shape[0]
         self._train_info['entropy'] = H[II]
 
     def _get_patches(self, X):
         assert X.ndim == 4
 
         samples_per_image = self._settings.get('samples_per_image', 20) 
-        fr = self._settings['outer_frame']
+        fr = self._settings.get('outer_frame', 0)
         patches = []
 
         rs = np.random.RandomState(self._settings.get('patch_extraction_seed', 0))
 
         th = self._settings['threshold']
+        support_mask = self._settings.get('support_mask')
+
+        consecutive_failures = 0
 
         for Xi in X:
 
@@ -175,7 +152,9 @@ class PartsLayer(Layer):
 
                     patch = Xi[selection]
                     #edgepatch_nospread = edges_nospread[selection]
-                    if fr == 0:
+                    if support_mask is not None:
+                        tot = patch[support_mask].sum()
+                    elif fr == 0:
                         tot = patch.sum()
                     else:
                         tot = patch[fr:-fr,fr:-fr].sum()
@@ -184,10 +163,17 @@ class PartsLayer(Layer):
                         patches.append(patch)
                         if len(patches) >= self._settings.get('max_samples', np.inf):
                             return np.asarray(patches)
+                        consecutive_failures = 0
                         break
 
                     if tries == N-1:
                         ag.info('WARNING: {} tries'.format(N))
+                        ag.info('cons', consecutive_failures)
+                        consecutive_failures += 1
+
+                    if consecutive_failures >= 10:
+                        # Just give up.
+                        raise ValueError("FATAL ERROR: Threshold is probably too high.")
 
         return np.asarray(patches)
 
@@ -201,15 +187,15 @@ class PartsLayer(Layer):
         print('SHAPE', self._parts.shape)
 
         cdict1 = {'red':  ((0.0, 0.0, 0.0),
-                           (0.5, 0.0, 0.0),
+                           (0.5, 0.5, 0.5),
                            (1.0, 1.0, 1.0)),
 
                  'green': ((0.0, 0.4, 0.4),
-                           (0.5, 0.0, 0.0),
+                           (0.5, 0.5, 0.5),
                            (1.0, 1.0, 1.0)),
 
                  'blue':  ((0.0, 1.0, 1.0),
-                           (0.5, 0.0, 0.0),
+                           (0.5, 0.5, 0.5),
                            (1.0, 0.4, 0.4))
                 }
 
@@ -218,7 +204,7 @@ class PartsLayer(Layer):
 
         for i in xrange(N):
             for j in xrange(D):
-                grid.set_image(self._parts[i,...,j], i, j, cmap=C)#cm.BrBG)
+                grid.set_image(self._parts[i,...,j], i, j, cmap=C, vmin=0, vmax=1)#cm.BrBG)
 
         grid.save(vz.generate_filename(), scale=5)
 
@@ -239,6 +225,47 @@ class PartsLayer(Layer):
 
         vz.log('median entropy', np.median(self._train_info['entropy']))
 
+        llhs = self._train_info.get('llhs')
+        if llhs is not None:
+            vz.log('llhs', llhs.shape)
+
+            plt.figure(figsize=(6, 3))
+            #plt.hist(llhs.mean(0))
+            plt.errorbar(np.arange(self._num_parts), llhs.mean(0), yerr=llhs.std(0), fmt='--o')
+            plt.title('log likelihood means')
+            plt.savefig(vz.generate_filename(ext='svg'))
+
+            parts = np.argmax(llhs, 1) 
+
+            means = np.zeros(self._num_parts)
+            sigmas = np.zeros(self._num_parts)
+            for f in xrange(self._num_parts):
+                llh0 = llhs[parts == f,f] 
+                means[f] = llh0.mean()
+                sigmas[f] = llh0.std()
+                vz.log('llh', f, ':', means[f], sigmas[f])
+
+            plt.figure(figsize=(6, 3))
+            #plt.hist(llhs.mean(0))
+            plt.errorbar(np.arange(self._num_parts), means, yerr=sigmas, fmt='--o')
+
+            from scipy.special import logit
+
+            anal_means = -np.prod(self._parts.shape[1:]) * self._train_info['entropy']
+            anal_sigmas = np.sqrt(np.apply_over_axes(np.sum, logit(self._parts)**2 * self._parts * (1 - self._parts), [1, 2, 3]).ravel())
+
+            plt.errorbar(np.arange(self._num_parts), anal_means, yerr=anal_sigmas, fmt='--o')
+            #plt.plot(np.arange(self._num_parts), anal_means)
+            plt.title('coded log likelihood means')
+            plt.savefig(vz.generate_filename(ext='svg'))
+
+
+            plt.figure(figsize=(6, 3))
+            plt.hist(llhs.ravel(), 50)
+            plt.title('Log likelihood distribution')
+            plt.savefig(vz.generate_filename(ext='svg'))
+
+
     def save_to_dict(self):
         d = {}
         d['num_parts'] = self._num_parts
@@ -246,6 +273,7 @@ class PartsLayer(Layer):
         d['settings'] = self._settings
 
         d['parts'] = self._parts
+        d['keypoints'] = self._keypoints
         d['weights'] = self._weights
         return d
 
@@ -253,5 +281,12 @@ class PartsLayer(Layer):
     def load_from_dict(cls, d):
         obj = cls(d['num_parts'], d['part_shape'], settings=d['settings'])
         obj._parts = d['parts']
+        obj._keypoints = d.get('keypoints')
         obj._weights = d['weights']
         return obj
+
+    def __repr__(self):
+        return 'PartsLayer(num_parts={num_parts}, part_shape={part_shape}, settings={settings})'.format(
+                    num_parts=self._num_parts,
+                    part_shape=self._part_shape,
+                    settings=self._settings)
