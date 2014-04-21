@@ -15,21 +15,25 @@ def randomize_layers_parameters(seed):
     rs = np.random.RandomState(seed)
 
     layer_options = dict(
-        num_parts=np.arange(10, 260, 10), 
-        part_side=[1,1,2,2,3,3,4,5,6],
-        pooling_stride=np.arange(1, 5),
+        #part_side=[1,1,2,2,3,3,4,5,6],
         pooling_size_above=np.arange(0, 3),
-        threshold=np.arange(1, 11),
-        max_samples=[5000, 10000, 100000, 200000],
+        threshold=np.arange(1, 6),
+        max_samples=[5000, 10000, 50000],
         min_prob=[0.05, 0.01, 0.005, 0.001, 0.0005, 0.0001, 0.00005],
-        support_index=[0,0,0,0,1,2,3,4],
-        pooling_support_index=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,2,3,4],
+        support_index=[0,0,0,0,0,0,0,0,0,0,0,1,2,3,4],
+        pooling_support_index=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,2,3,4],
         n_coded=[1,1,1,2,3,4],
-        min_percentile=np.arange(0, 50, 5),
+        min_percentile=np.arange(0, 30, 5),
     )
 
     joint_options = dict(
-        standardize=np.arange(1, 4),
+        standardize=[0,1,2,3],
+        layer0_part_side=[2,2,2,3,3,4],
+        layer1_part_side=[1,2,3,4,5],
+        layer0_num_parts=np.arange(10, 60, 10), 
+        layer1_num_parts=np.arange(10, 110, 10), 
+        layer0_pooling_stride=np.arange(1, 3),
+        layer1_pooling_stride=np.arange(1, 5),
     )
 
     for layer in xrange(2):
@@ -101,6 +105,10 @@ def construct_layers(params):
     ]
     return layers
 
+def test(ims, labels, net):
+    yhat = net.classify(ims)
+    return yhat == labels
+
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
@@ -146,13 +154,29 @@ if __name__ == '__main__':
 
         net.train(sup_ims, sup_labels)
 
-
-
+        print("Now testing...")
         ### Test ######################################################################
 
+        corrects = 0
+        total = 0
         test_ims, test_labels = ag.io.load_mnist('training', selection=slice(30000, 40000))
+        ims_batches = np.array_split(test_ims, 200)
+        labels_batches = np.array_split(test_labels, 200)
 
-        error_rate = 1.0 - (net.classify(test_ims) == test_labels).mean()
+        def format_error_rate(pr):
+            return "{:.2f}%".format(100*(1-pr))
+
+        args = [tup+(net,) for tup in zip(ims_batches, labels_batches)]
+        for i, res in enumerate(itr.starmap(test, args)):
+            if i != 0 and i % 20 == 0:
+                print("{0:05}/{1:05} Error rate: {2}".format(total, len(ims), format_error_rate(pr)))
+
+            corrects += res.sum()
+            total += res.size
+            pr = corrects / total
+
+        error_rate = 1.0 - pr 
+
 
         error_rates.append(error_rate)
         print('error rate', error_rate)
