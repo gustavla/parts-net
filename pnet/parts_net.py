@@ -23,7 +23,7 @@ class PartsNet(Layer):
 
             if not layer.trained:
                 ag.info('Training layer {}...'.format(l))
-                layer.train(curX, Y=Y)
+                layer.train(curX, Y=Y, OriginalX=X)
                 ag.info('Done.')
 
             curX = layer.extract(curX) 

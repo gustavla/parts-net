@@ -4,7 +4,7 @@ from .saveable import SaveableRegistry
 
 @SaveableRegistry.root
 class Layer(SaveableRegistry):
-    def train(self, X, Y=None):
+    def train(self, X, Y=None, OriginalX=None):
         pass 
 
     def extract(self, X):

@@ -617,7 +617,9 @@ class BernoulliMM(BaseEstimator):
         return underlying_clusters
 
 
-
+def remix(self,data):
+    aff = np.asarray(self.affinities)
+    return np.asarray([np.average(data, axis=0, weights=aff[:,m]) for m in xrange(self.n_components)])
 
 
 def _compute_log_odds_inv_means_sums(means):

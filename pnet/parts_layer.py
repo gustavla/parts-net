@@ -28,7 +28,7 @@ class PartsLayer(Layer):
         #self._threshold = threshold
         self._settings = settings
         self._train_info = {}
-
+        self._visParts = None
         self._parts = None
         self._weights = None
 
@@ -52,15 +52,15 @@ class PartsLayer(Layer):
     def trained(self):
         return self._parts is not None 
 
-    def train(self, X, Y=None):
+    def train(self, X, Y=None, OriginalX = None):
         assert Y is None
         ag.info('Extracting patches')
-        patches = self._get_patches(X)
+        patches, patches_original = self._get_patches(X,OriginalX)
         ag.info('Done extracting patches')
         ag.info('Training patches', patches.shape)
-        return self.train_from_samples(patches)
+        return self.train_from_samples(patches,patches_original)
 
-    def train_from_samples(self, patches):
+    def train_from_samples(self, patches,patches_original):
         #from pnet.latent_bernoulli_mm import LatentBernoulliMM
         from pnet.bernoullimm import BernoulliMM
         min_prob = self._settings.get('min_prob', 0.01)
@@ -146,19 +146,20 @@ class PartsLayer(Layer):
         self._parts[:] = self._parts[II]
         self._train_info['entropy'] = H[II]
 
-    def _get_patches(self, X):
+    def _get_patches(self, X, OriginalX):
         assert X.ndim == 4
-
+        assert OriginalX.ndim == 3
         samples_per_image = self._settings.get('samples_per_image', 20) 
         fr = self._settings['outer_frame']
         patches = []
-
+        patches_original = []
         rs = np.random.RandomState(self._settings.get('patch_extraction_seed', 0))
 
         th = self._settings['threshold']
 
-        for Xi in X:
-
+        for i in range(X.shape[0]):
+            Xi = X[i]
+            OriginalXi = OriginalX[i]
             # How many patches could we extract?
             w, h = [Xi.shape[i]-self._part_shape[i]+1 for i in xrange(2)]
 
@@ -182,14 +183,19 @@ class PartsLayer(Layer):
 
                     if th <= tot: 
                         patches.append(patch)
+                        vispatch = OriginalXi[selection]
+                        span = vispatch.min(),vispatch.max()
+                        if span[1]-span[0] > 0:
+                            vispatch = (vispatch - span[0])/(span[1] - span[0])
+                        patches_original.append(vispatch)
                         if len(patches) >= self._settings.get('max_samples', np.inf):
-                            return np.asarray(patches)
+                            return np.asarray(patches),np.asarray(patches_original)
                         break
 
                     if tries == N-1:
                         ag.info('WARNING: {} tries'.format(N))
 
-        return np.asarray(patches)
+        return np.asarray(patches),np.asarray(patches_original)
 
     def infoplot(self, vz):
         from pylab import cm
@@ -244,7 +250,7 @@ class PartsLayer(Layer):
         d['num_parts'] = self._num_parts
         d['part_shape'] = self._part_shape
         d['settings'] = self._settings
-
+        d['visParts'] = self._visParts
         d['parts'] = self._parts
         d['weights'] = self._weights
         return d
@@ -254,4 +260,5 @@ class PartsLayer(Layer):
         obj = cls(d['num_parts'], d['part_shape'], settings=d['settings'])
         obj._parts = d['parts']
         obj._weights = d['weights']
+        obj._visParts = d['visParts']
         return obj

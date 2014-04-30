@@ -29,13 +29,13 @@ class MixtureClassificationLayer(SupervisedLayer):
         Yhat = np.argmax(np.apply_over_axes(np.sum, llh, [-3, -2, -1])[...,0,0,0].max(-1), axis=1)
         return Yhat 
     
-    def train(self, X, Y):
+    def train(self, X, Y, OriginalX = None):
         K = Y.max() + 1
 
         mm_models = []
         for k in xrange(K):
             Xk = X[Y == k]
-            import pdb ; pdb.set_trace()
+            #import pdb ; pdb.set_trace()
             Xk = Xk.reshape((Xk.shape[0], -1))
             mm = BernoulliMM(n_components=self._n_components, n_iter=10, n_init=1, random_state=0, min_prob=self._min_prob)
             mm.fit(Xk)
