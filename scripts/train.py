@@ -23,26 +23,25 @@ layers = [
     #pnet.IntensityThresholdLayer(),
     pnet.EdgeLayer(k=5, radius=1, spread='orthogonal', minimum_contrast=0.05),
     #pnet.IntensityThresholdLayer(),
-    pnet.PartsLayer(40, (3, 3), settings=dict(outer_frame=0, 
+    pnet.PartsLayer(200, (4, 4), settings=dict(outer_frame=0, 
                                               threshold=8, 
                                               samples_per_image=40, 
                                               max_samples=10000, 
-                                              min_prob=0.0005)),
-    pnet.PoolingLayer(shape=(3, 3), strides=(1, 1)),
+                                              min_prob=0.005)),
+    pnet.PoolingLayer(shape=(3, 3), strides=(3, 3)),
     #pnet.MixtureClassificationLayer(n_components=1, min_prob=0.0001),
-    pnet.SVMClassificationLayer(C=1.0),
-] #+ 
-
-[
-    pnet.PartsLayer(100, (2, 2), settings=dict(outer_frame=0,
-                                              threshold=5,
+    #pnet.SVMClassificationLayer(C=1.0),
+    pnet.PartsLayer(2000, (1, 1), settings=dict(outer_frame=0,
+                                              threshold=6,
                                               samples_per_image=40,
                                               max_samples=10000,
                                               min_prob=0.0005,
                                               min_llh=-40,
-                                              n_coded=1
+                                              n_coded=2
                                               )),
-    pnet.PoolingLayer(shape=(4, 4), strides=(2, 2)),
+    pnet.PoolingLayer(shape=(3,3), strides=(3, 3)),
+
+    pnet.SVMClassificationLayer(C=1.0)
 ]
 
 net = pnet.PartsNet(layers)
