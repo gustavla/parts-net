@@ -29,6 +29,8 @@ def test2():
     labels = labels[0:200]
     #print(ims.shape)
     classifiedLabel = net.classify(ims)
+    #print out all the misclassified  images
+
     misclassify = np.nonzero(classifiedLabel!=labels)
     misclassify = np.append([],np.asarray(misclassify, dtype=np.int))
     numMisclassify = len(misclassify)
@@ -49,8 +51,10 @@ def test2():
     gr.images(image)
 
 def displayParts():
+    # load the trained Image
     X =  np.load('test4.npy')
     model = X.item()
+    # get the parts Layer
     numParts1 = model['layers'][1]['num_parts']
     numParts2 = model['layers'][3]['num_parts']
     net = pnet.PartsNet.load_from_dict(model)
@@ -125,8 +129,75 @@ def investigate():
             partNew2[i + 1,0:4,0:4] = partsPlot1[index[i],:,:]
         fileString = 'part%i.png' %partIndex
         gr.images(partNew2,zero_to_one=False, show=False,vmin = 0, vmax = 1, fileName = fileString) 
-      
-      
+
+def partsPool(originalPartsRegion, numParts):
+    partsGrid = np.zeros((1,1,numParts))
+    for i in range(originalPartsRegion.shape[0]):
+        for j in range(originalPartsRegion.shape[1]):
+            if(originalPartsRegion[i,j]!=-1):
+                partsGrid[0,0,originalPartsRegion[i,j]] = 1
+    return partsGrid
+
+def trainPOP():
+    X = np.load("test4.npy") 
+    model = X.item()
+    # get num of Parts
+    numParts = model['layers'][1]['num_parts'] 
+    net = pnet.PartsNet.load_from_dict(model)
+    allLayer = net.layers
+    ims,labels = ag.io.load_mnist('training')
+    trainingDataNum = 1000
+    extractedFeature = extract(ims[0:trainingDataNum],allLayer[0:2])[0]
+    extractedFeature = extractedFeature.reshape(extractedFeature.shape[0:3])
+    partsPlot = np.zeros((numParts,4,4))
+    partsCodedNumber = np.zeros(numParts)
+        
+    #every list corresponding to the larger region surrounding 10x10 region of the 5*5 region code    d by this part 
+    imgRegion = [[] for x in range(numParts)]
+    partsRegion = [[] for x in range(numParts)]    
+    #Part Visualize#
+    for i in range(trainingDataNum):
+        codeParts = extractedFeature[i]
+        for m in range(25):
+            for n in range(25):
+                if(codeParts[m,n]!=-1):
+                    partsPlot[codeParts[m,n]]+=ims[i,m:m+4,n:n+4]
+                    partsCodedNumber[codeParts[m,n]]+=1    
+    for j in range(numParts):
+        partsPlot[j] = partsPlot[j]/partsCodedNumber[j]
+
+
+
+    for i in range(trainingDataNum):
+        codeParts = extractedFeature[i]
+        for m in range(25)[2:23]:
+            for n in range(25)[2:23]:
+                if(codeParts[m,n]!=-1):
+                    imgRegion[codeParts[m,n]].append(ims[i,m-2:m+6,n-2:n+6])
+                    partsGrid = partsPool(codeParts[m-2:m+2,n-2:n+2],numParts)
+                    partsRegion[codeParts[m,n]].append(partsGrid)
+
+    for i in range(numParts):
+        print(len(partsRegion[i]))
+
+    gr.images(partsPlot,zero_to_one=False, show=False, vmin = 0, vmax = 1, fileName = 'figure.png')
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+     
       
       
          
