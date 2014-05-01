@@ -24,8 +24,8 @@ layers = [
     
     pnet.EdgeLayer(k=5, radius=1, spread='orthogonal', minimum_contrast=0.05),
     #pnet.IntensityThresholdLayer(),
-    pnet.PartsLayer(100, (4, 4), settings=dict(outer_frame=0, 
-                                              threshold=8, 
+    pnet.PartsLayer(100, (6, 6), settings=dict(outer_frame=0, 
+                                              threshold=40, 
                                               samples_per_image=40, 
                                               max_samples=10000, 
                                               min_prob=0.005)),

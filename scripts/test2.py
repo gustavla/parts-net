@@ -149,7 +149,7 @@ def trainPOP():
     trainingDataNum = 1000
     extractedFeature = extract(ims[0:trainingDataNum],allLayer[0:2])[0]
     extractedFeature = extractedFeature.reshape(extractedFeature.shape[0:3])
-    partsPlot = np.zeros((numParts,4,4))
+    partsPlot = np.zeros((numParts,6,6))
     partsCodedNumber = np.zeros(numParts)
         
     #every list corresponding to the larger region surrounding 10x10 region of the 5*5 region code    d by this part 
@@ -158,24 +158,24 @@ def trainPOP():
     #Part Visualize#
     for i in range(trainingDataNum):
         codeParts = extractedFeature[i]
-        for m in range(25):
-            for n in range(25):
+        for m in range(23):
+            for n in range(23):
                 if(codeParts[m,n]!=-1):
-                    partsPlot[codeParts[m,n]]+=ims[i,m:m+4,n:n+4]
+                    partsPlot[codeParts[m,n]]+=ims[i,m:m+6,n:n+6]
                     partsCodedNumber[codeParts[m,n]]+=1    
     for j in range(numParts):
         partsPlot[j] = partsPlot[j]/partsCodedNumber[j]
 
 
-
-    for i in range(trainingDataNum):
-        codeParts = extractedFeature[i]
-        for m in range(25)[2:23]:
-            for n in range(25)[2:23]:
-                if(codeParts[m,n]!=-1):
-                    imgRegion[codeParts[m,n]].append(ims[i,m-2:m+6,n-2:n+6])
-                    partsGrid = partsPool(codeParts[m-2:m+2,n-2:n+2],numParts)
-                    partsRegion[codeParts[m,n]].append(partsGrid)
+    if 1:
+        for i in range(trainingDataNum):
+            codeParts = extractedFeature[i]
+            for m in range(23)[3:20]:
+                for n in range(23)[3:20]:
+                    if(codeParts[m,n]!=-1):
+                        imgRegion[codeParts[m,n]].append(ims[i,m-3:m+9,n-3:n+9])
+                        partsGrid = partsPool(codeParts[m-3:m+3,n-3:n+3],numParts)
+                        partsRegion[codeParts[m,n]].append(partsGrid)
 
     for i in range(numParts):
         print(len(partsRegion[i]))
