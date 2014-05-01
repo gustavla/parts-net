@@ -9,7 +9,11 @@ def extract(ims,allLayers):
     print(allLayers)
     curX = ims
     for layer in allLayers:
+        print('-------------')
+        print(layer)
         curX = layer.extract(curX)
+        print(np.array(curX).shape)
+        print('------------------')
     return curX
 
 def test2():
@@ -148,11 +152,12 @@ def trainPOP():
     ims,labels = ag.io.load_mnist('training')
     trainingDataNum = 1000
     extractedFeature = extract(ims[0:trainingDataNum],allLayer[0:2])[0]
+    print(extractedFeature.shape)
     extractedFeature = extractedFeature.reshape(extractedFeature.shape[0:3])
     partsPlot = np.zeros((numParts,6,6))
     partsCodedNumber = np.zeros(numParts)
         
-    #every list corresponding to the larger region surrounding 10x10 region of the 5*5 region code    d by this part 
+    #every list corresponding to the larger region surrounding 10x10 region of the 5*5 region coded by this part 
     imgRegion = [[] for x in range(numParts)]
     partsRegion = [[] for x in range(numParts)]    
     #Part Visualize#
@@ -174,18 +179,44 @@ def trainPOP():
                 for n in range(23)[3:20]:
                     if(codeParts[m,n]!=-1):
                         imgRegion[codeParts[m,n]].append(ims[i,m-3:m+9,n-3:n+9])
-                        partsGrid = partsPool(codeParts[m-3:m+3,n-3:n+3],numParts)
+                        partsGrid = partsPool(codeParts[m-3:m+4,n-3:n+4],numParts)
                         partsRegion[codeParts[m,n]].append(partsGrid)
 
     for i in range(numParts):
         print(len(partsRegion[i]))
-
-    gr.images(partsPlot,zero_to_one=False, show=False, vmin = 0, vmax = 1, fileName = 'figure.png')
     
+    allPartsLayer = [[pnet.PartsLayer(10,(1,1),settings=dict(outer_frame=0,threshold=5,
+                                                            sample_per_image=1,
+                                                            max_samples=10000,
+                                                            min_prob=0.005))] for i in range(numParts)]
+    allPartsLayerImg = np.zeros((numParts,10,12,12)) 
+    
+    allPartsLayerImgNumber = np.zeros((numParts,10))
+   
+    print("====================================================") 
+    
+    for i in range(numParts):
+        print("test")
+        allPartsLayer[i][0].train_from_samples(np.array(partsRegion[i]),None)
+        extractedFeaturePart = extract(np.array(partsRegion[i],dtype = np.uint8),allPartsLayer[i])[0]
+        print(extractedFeaturePart.shape)
+        for j in range(len(partsRegion[i])):
+            if(extractedFeaturePart[j,0,0,0]!=-1):
+                partIndex = extractedFeaturePart[j,0,0,0]
+                allPartsLayerImg[i,partIndex]+=imgRegion[i][j]
+                allPartsLayerImgNumber[i,partIndex]+=1
+    
+    for i in range(numParts):
+        for j in range(10):
+            allPartsLayerImg[i,j] = allPartsLayerImg[i,j]/allPartsLayerImgNumber[i,j] 
 
-
-
-
+    print(allPartsLayerImgNumber)
+    allPartsPlot = np.zeros((20,11,12,12))
+    gr.images(partsPlot.reshape(numParts,6,6),zero_to_one=False,vmin = 0, vmax = 1)
+    allPartsPlot[:,0] = 0.5
+    allPartsPlot[:,0,3:9,3:9] = partsPlot[20:40]
+    allPartsPlot[:,1:,:,:] = allPartsLayerImg[20:40]
+    gr.images(allPartsPlot.reshape(220,12,12),zero_to_one=False, vmin = 0, vmax =1)
 
 
 

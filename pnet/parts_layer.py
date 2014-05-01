@@ -28,7 +28,6 @@ class PartsLayer(Layer):
         #self._threshold = threshold
         self._settings = settings
         self._train_info = {}
-        self._visParts = None
         self._parts = None
         self._weights = None
 
@@ -250,7 +249,6 @@ class PartsLayer(Layer):
         d['num_parts'] = self._num_parts
         d['part_shape'] = self._part_shape
         d['settings'] = self._settings
-        d['visParts'] = self._visParts
         d['parts'] = self._parts
         d['weights'] = self._weights
         return d
@@ -260,5 +258,4 @@ class PartsLayer(Layer):
         obj = cls(d['num_parts'], d['part_shape'], settings=d['settings'])
         obj._parts = d['parts']
         obj._weights = d['weights']
-        obj._visParts = d['visParts']
         return obj
