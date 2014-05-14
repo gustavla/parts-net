@@ -32,19 +32,21 @@ class PoolingLayer(Layer):
 
     def infoplot(self, vz):
         import pylab as plt
-        plt.figure(figsize=(6, 3))
-        plt.plot(self._extract_info['concentration'], label='concentration')
-        plt.savefig(vz.generate_filename(ext='svg'))
 
-        plt.figure(figsize=(4, 4))
-        cc = self._extract_info['concentration']
-        plt.hist(np.log10(cc[cc>0]), normed=True)
-        plt.xlabel('Concentration (10^x)')
-        plt.title('Concentration')
-        plt.savefig(vz.generate_filename(ext='svg'))
+        if 'concentration' in self._extract_info:
+            plt.figure(figsize=(6, 3))
+            plt.plot(self._extract_info['concentration'], label='concentration')
+            plt.savefig(vz.generate_filename(ext='svg'))
 
-        #vz.log('concentration', self._extract_info['concentration'])
-        vz.log('mean concentration: {:.1f}%'.format(100*self._extract_info['concentration'].mean()))
+            plt.figure(figsize=(4, 4))
+            cc = self._extract_info['concentration']
+            plt.hist(np.log10(cc[cc>0]), normed=True)
+            plt.xlabel('Concentration (10^x)')
+            plt.title('Concentration')
+            plt.savefig(vz.generate_filename(ext='svg'))
+
+            #vz.log('concentration', self._extract_info['concentration'])
+            vz.log('mean concentration: {:.1f}%'.format(100*self._extract_info['concentration'].mean()))
 
 
     def save_to_dict(self):

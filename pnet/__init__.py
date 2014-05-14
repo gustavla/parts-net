@@ -5,7 +5,11 @@ from .intensity_threshold_layer import IntensityThresholdLayer
 from .edge_layer import EdgeLayer
 from .pooling_layer import PoolingLayer
 from .parts_layer import PartsLayer
+from .hierarchical_parts_layer import HierarchicalPartsLayer
+from .binary_tree_parts_layer import BinaryTreePartsLayer
+from .random_forest_parts_layer import RandomForestPartsLayer
 from .parts_net import PartsNet
+from .feature_combiner_layer import FeatureCombinerLayer
 from .mixture_classification_layer import MixtureClassificationLayer
 from .svm_classification_layer import SVMClassificationLayer
 from . import plot

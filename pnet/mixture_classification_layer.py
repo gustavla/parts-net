@@ -11,9 +11,13 @@ class MixtureClassificationLayer(SupervisedLayer):
         self._min_prob = min_prob
         self._models = None
 
+
     @property
     def trained(self):
         return self._models is not None
+
+    def reset(self):
+        self._models = None
 
     @property
     def classifier(self):
@@ -36,11 +40,29 @@ class MixtureClassificationLayer(SupervisedLayer):
         for k in xrange(K):
             Xk = X[Y == k]
             Xk = Xk.reshape((Xk.shape[0], -1))
-            mm = BernoulliMM(n_components=self._n_components, n_iter=10, n_init=1, random_state=0, min_prob=self._min_prob)
+
+            mm = BernoulliMM(n_components=self._n_components, 
+                             n_iter=10, 
+                             n_init=1, 
+                             random_state=0, 
+                             min_prob=self._min_prob,
+                             blocksize=200)
             mm.fit(Xk)
             mm_models.append(mm.means_.reshape((self._n_components,)+X.shape[1:]))
 
         self._models = np.asarray(mm_models)
+
+    def infoplot(self, vz):
+        import pylab as plt
+        vz.section('Mixture model')
+        vz.log(self._models.shape)
+
+        plt.figure(figsize=(6, 4))
+        X = self._models.ravel()
+        plt.hist(np.log10(X[X > 0]), normed=True) 
+        plt.xlabel('Concentration (10^x)')
+        plt.title('Model probs')
+        plt.savefig(vz.generate_filename(ext='svg'))
 
     def save_to_dict(self):
         d = {}

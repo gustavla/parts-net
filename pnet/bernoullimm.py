@@ -414,7 +414,7 @@ class BernoulliMM(BaseEstimator):
                 'BernoulliMM estimation with %s components, but got only %s samples' %
                 (self.n_components, X.shape[0]))
 
-        inv_X = 1- X
+        inv_X = 1 - X
         max_log_prob = -np.infty
 
         # if debug_plot:
@@ -436,7 +436,7 @@ class BernoulliMM(BaseEstimator):
                             1-self.min_prob)
                     for i in xrange(self.n_components)))
 
-                self.log_odds_, self.log_inv_mean_sums_ = _compute_log_odds_inv_means_sums(self.means_)
+            self.log_odds_, self.log_inv_mean_sums_ = _compute_log_odds_inv_means_sums(self.means_)
 
             if 'w' in self.init_params or not hasattr(self,'weights_'):
                 if self.verbose:

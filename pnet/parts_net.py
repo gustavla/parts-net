@@ -9,10 +9,15 @@ class PartsNet(Layer):
     def __init__(self, layers):
         self._layers = layers
         self._train_info = {}
+        self._trained = False
 
     @property
     def layers(self):
         return self._layers
+
+    @property
+    def trained(self):
+        return self._trained
 
     def train(self, X, Y=None):
         curX = X
@@ -26,15 +31,18 @@ class PartsNet(Layer):
                 layer.train(curX, Y=Y)
                 ag.info('Done.')
 
-            curX = layer.extract(curX) 
+            if l < len(self._layers) - 1:
+                curX = layer.extract(curX) 
 
-            if isinstance(curX, tuple):
-                sh = curX[0].shape[1:3] + (curX[1],)
-            else:
-                sh = curX.shape[1:]
-            shapes.append(sh)
+                if 0:
+                    if isinstance(curX, tuple):
+                        sh = curX[0].shape[1:3] + (curX[1],)
+                    else:
+                        sh = curX.shape[1:]
+                    shapes.append(sh)
 
         self._train_info['shapes'] = shapes
+        self._trained = True
 
     def test(self, X, Y):
         Yhat = self.extract(X)

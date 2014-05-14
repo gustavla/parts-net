@@ -37,6 +37,10 @@ class PartsLayer(Layer):
         self._parts = None
         self._weights = None
 
+    @property
+    def num_parts(self):
+        return self._num_parts
+
     def extract(self, X):
         assert self._parts is not None, "Must be trained before calling extract"
 
@@ -120,6 +124,42 @@ class PartsLayer(Layer):
         self._num_parts = II.shape[0]
         self._train_info['entropy'] = H[II]
 
+
+        # Reject some parts
+
+    def reject_parts(self): 
+        ok = self
+
+        Hall = (self._parts * np.log(self._parts) + (1 - self._parts) * np.log(1 - self._parts))
+        H = -np.apply_over_axes(np.mean, Hall, [1, 2, 3]).ravel()
+
+
+        #print('H', H.shape)
+        
+        #ok = H < self._settings.get('reject_entropy', 0.03)
+
+
+        th1 = self._parts
+        th0 = bkg_parts = np.apply_over_axes(np.mean, self._parts, [1, 2])
+
+        mu1 = np.apply_over_axes(np.sum, (th1 * np.log(th1 / th0) + (1 - th1) * np.log((1 - th1) / (1 - th0))), [1, 2, 3]).ravel()
+        sigma1 = np.sqrt(np.apply_over_axes(np.sum, np.log((th1 / (1 - th1) * ((1 - th0) / th0)))**2 * th1 * (1 - th1), [1, 2, 3])).ravel()
+
+        mu0 = np.apply_over_axes(np.sum, (th0 * np.log(th1 / th0) + (1 - th1) * np.log((1 - th0) / (1 - th0))), [1, 2, 3]).ravel()
+        sigma0 = np.sqrt(np.apply_over_axes(np.sum, np.log((th1 / (1 - th1) * ((1 - th0) / th0)))**2 * th0 * (1 - th0), [1, 2, 3])).ravel()
+
+        ok = ((mu1 - mu0) / sigma1) > self._settings.get('reject_entropy', 1.0) 
+
+        #print(((mu1 / sigma1).min())
+
+        print(ok.shape)
+        print(ok.sum())
+
+        self._parts = self._parts[ok]
+        self._num_parts = self._parts.shape[0]
+
+        #print('parts', self._parts.shape)
+
     def _get_patches(self, X):
         assert X.ndim == 4
 
@@ -182,9 +222,7 @@ class PartsLayer(Layer):
         D = self._parts.shape[-1]
         N = self._num_parts
         # Plot all the parts
-        grid = pnet.plot.ImageGrid(N, D, self._part_shape)
-
-        print('SHAPE', self._parts.shape)
+        grid = pnet.plot.ImageGrid(N, D, self._part_shape, border_color=(0.6, 0.2, 0.2))
 
         cdict1 = {'red':  ((0.0, 0.0, 0.0),
                            (0.5, 0.5, 0.5),

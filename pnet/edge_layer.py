@@ -9,7 +9,10 @@ class EdgeLayer(Layer):
         self._edge_settings = kwargs 
 
     def extract(self, X):
-        return ag.features.bedges(X, **self._edge_settings)
+        if isinstance(X, list):
+            return [ag.features.bedges(Xi, **self._edge_settings) for Xi in X]
+        else:
+            return ag.features.bedges(X, **self._edge_settings)
 
     def save_to_dict(self):
         d = {}

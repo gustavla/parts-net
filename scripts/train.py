@@ -24,53 +24,77 @@ layers = [
     pnet.EdgeLayer(k=5, radius=1, spread='orthogonal', minimum_contrast=0.05),
     #pnet.IntensityThresholdLayer(),
     pnet.PartsLayer(100, (5, 5), settings=dict(outer_frame=1, 
-                                              em_seed=1,
-                                              threshold=8, 
-                                              samples_per_image=40, 
-                                              max_samples=10000, 
-                                              min_prob=0.0005)),
+                                               em_seed=1,
+                                               threshold=8, 
+                                               samples_per_image=40, 
+                                               max_samples=10000, 
+                                               min_prob=0.0005)),
     pnet.PoolingLayer(shape=(6, 6), strides=(4, 4)),
 ] #+ 
 
-if 0:
+if 1:
     layers = [
         #pnet.IntensityThresholdLayer(),
         pnet.EdgeLayer(k=5, radius=1, spread='orthogonal', minimum_contrast=0.05),
-        #pnet.IntensityThresholdLayer(),
-        pnet.PartsLayer(100, (5, 5), settings=dict(outer_frame=0, 
-                                                  em_seed=1,
-                                                  threshold=4, 
+
+        pnet.HierarchicalPartsLayer(2, 10, (5, 5), settings=dict(outer_frame=1, 
+                                                  em_seed=seed + 2,
+                                                  threshold=2, 
                                                   samples_per_image=40, 
                                                   max_samples=100000, 
                                                   min_prob=0.0005)),
         pnet.PoolingLayer(shape=(4, 4), strides=(4, 4)),
     ]
+
+elif 1:
+    layers = [
+        pnet.IntensityThresholdLayer(),
+        #pnet.EdgeLayer(k=5, radius=1, spread='orthogonal', minimum_contrast=0.05),
+        #pnet.IntensityThresholdLayer(),
+        pnet.PartsNet([
+            pnet.PartsLayer(100*8, (5, 5), settings=dict(outer_frame=1, 
+                                                      em_seed=1,
+                                                      threshold=4, 
+                                                      samples_per_image=40, 
+                                                      max_samples=100000, 
+                                                      min_prob=0.0005)),
+            pnet.PoolingLayer(shape=(4, 4), strides=(4, 4)),
+        ]),
+        pnet.MixtureClassificationLayer(n_components=1),
+    ]
+
 else:
     layers = [
         #pnet.IntensityThresholdLayer(),
         pnet.EdgeLayer(k=5, radius=1, spread='orthogonal', minimum_contrast=0.05),
         #pnet.IntensityThresholdLayer(),
-        pnet.PartsLayer(100, (5, 5), settings=dict(outer_frame=0, 
-                                                  em_seed=2,
-                                                  threshold=4, 
-                                                  samples_per_image=40, 
-                                                  max_samples=100000, 
-                                                  min_prob=0.005,
-                                                  #min_llh=-20,
-                                                  #standardize=1,
-                                                  #min_percentile=10,
-                                                  n_coded=2
-                                                  )),
-        pnet.PoolingLayer(shape=(4, 4), strides=(4, 4)),
-    ] + [
-        pnet.PartsLayer(5000, (1, 1), settings=dict(outer_frame=0,
-                                                  threshold=1,
-                                                  samples_per_image=200,
-                                                  max_samples=100000,
-                                                  min_prob=0.0005,
+        pnet.PartsLayer(50, (2, 2), settings=dict(outer_frame=0, 
+                                                  #em_seed=2,
+                                                  threshold=5, 
+                                                  samples_per_image=100, 
+                                                  max_samples=5000, 
+                                                  min_prob=0.01,
                                                   standardize=1,
-                                                  min_percentile=20,
-                                                  n_coded=6
+                                                  min_percentile=25,
+                                                  n_coded=4,
+                                                  )),
+        pnet.PoolingLayer(shape=(2, 2), strides=(1, 1)),
+    ] + [
+        pnet.PartsLayer(70, (5, 5), settings=dict(outer_frame=0,
+                                                  threshold=4,
+                                                  samples_per_image=100,
+                                                  max_samples=50000,
+                                                  min_prob=0.001,
+                                                  standardize=1,
+                                                  min_percentile=0,
+                                                  n_coded=2,
+                                                  support_mask=np.array([
+                                                                         [1, 0, 1, 0, 1],
+                                                                         [0, 0, 0, 0, 0],
+                                                                         [1, 0, 1, 0, 1],
+                                                                         [0, 0, 0, 0, 0],
+                                                                         [1, 0, 1, 0, 1],
+                                                                         ], dtype=np.bool),
                                                   )),
         pnet.PoolingLayer(shape=(3, 3), strides=(3, 3)),
         pnet.MixtureClassificationLayer(n_components=1),

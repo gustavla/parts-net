@@ -48,14 +48,20 @@ class VzLog(object):
         self._filename_stack = set() 
         if self._file_rights is not None:
             self._file_rights = int(self._file_rights, 8)
+        self._open = False
+        #self._has_footer = False
 
         self.initialize()
 
         self._counter = 0
 
+        # Make finalize unnecessary to call manually
+        import atexit
+        atexit.register(self.finalize)
+
     #def __del__(self):
         #if self._open:
-        #    self.finalize()
+            #self.finalize()
         #pass
 
     def register_filename(self, fn):
@@ -110,7 +116,12 @@ class VzLog(object):
 
     def _output_html(self, *args):
         with open(os.path.join(self._get_root(), 'index.html'), 'a') as f:
+            #if self._has_footer:
+                #f.seek(-len(_FOOTER), 2)
+
             print(*args, file=f)
+            #print(_FOOTER, file=f)
+            #self._has_footer = True
 
     def finalize(self):
         self._output_html(_FOOTER) 
@@ -118,8 +129,10 @@ class VzLog(object):
         self.update_rights()
         self.set_rights(self._get_root())
 
+        #if self._filename_stack:
+            #self.log("WARNING: Could not finalize these files: {}".format(self._filename_stack))
         if self._filename_stack:
-            self.log("WARNING: Could not finalize these files: {}".format(self._filename_stack))
+            print("WARNING: Could not finalize these files: {}".format(self._filename_stack))
 
         self._open = False
 
@@ -134,7 +147,8 @@ class VzLog(object):
         self.register_filename(os.path.join(self._get_root(), fn))
         # The file won't exist yet, but this can still update older files
         self.update_rights()
-        return os.path.join(self._get_root(), fn)
+        fn = os.path.join(self._get_root(), fn)
+        return fn
 
     def log(self, *args):
         self._output_surrounding_html('<pre>', '</pre>', *args)

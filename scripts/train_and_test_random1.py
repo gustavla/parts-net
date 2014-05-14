@@ -113,14 +113,15 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('seed', metavar='<seed>', type=int, help='Random seed')
+    parser.add_argument('--test', action='store_true')
 
-    args = parser.parse_args()
+    args0 = parser.parse_args()
 
 
     #for i in xrange(1, 7):
     #    print(make_support(i, 4).astype(np.uint8))
 
-    params = randomize_layers_parameters(args.seed)
+    params = randomize_layers_parameters(args0.seed)
     #print(params)
 
     error_rates = []
@@ -159,7 +160,10 @@ if __name__ == '__main__':
 
         corrects = 0
         total = 0
-        test_ims, test_labels = ag.io.load_mnist('training', selection=slice(30000, 40000))
+        if args0.test:
+            test_ims, test_labels = ag.io.load_mnist('testing')
+        else:
+            test_ims, test_labels = ag.io.load_mnist('training', selection=slice(30000, 40000))
         ims_batches = np.array_split(test_ims, 200)
         labels_batches = np.array_split(test_labels, 200)
 
@@ -181,7 +185,10 @@ if __name__ == '__main__':
         error_rates.append(error_rate)
         print('error rate', error_rate)
 
-    with open(os.path.join('output', '{:06}-{:06.3f}.txt'.format(args.seed, np.mean(error_rates)*100)), 'w') as f:
-        print(np.mean(error_rates), file=f)
-        print(error_rates, file=f)
-    #net.save(args.model)
+    if args0.test:
+        print('mean error rate', np.mean(error_rates))
+    else:
+        with open(os.path.join('output', '{:06}-{:06.3f}.txt'.format(args0.seed, np.mean(error_rates)*100)), 'w') as f:
+            print(np.mean(error_rates), file=f)
+            print(error_rates, file=f)
+        #net.save(args.model)
