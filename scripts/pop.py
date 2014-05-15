@@ -6,6 +6,8 @@ import amitgroup as ag
 import os
 import pnet
 import matplotlib.pylab as plot
+from pnet.cyfuncs import index_map_pooling
+from Queue import Queue
 def extract(ims,allLayers):
     #print(allLayers)
     curX = ims
@@ -160,12 +162,12 @@ def trainPOP():
     curX = curX.reshape(curX.shape[0:3])
     secondLevelCurx = np.zeros((10 * classificationTrainingNum,17,17,1,1,numParts))
     secondLevelCurxCenter = np.zeros((10 * classificationTrainingNum,17,17))
-    for i in range(10 * classificationTrainingNum):
-        codeParts = curX[i]
-        for m in range(23)[3:20]:
-            for n in range(23)[3:20]:
-                secondLevelCurx[i,m-3,n-3] = partsPool(codeParts[m-3:m+4,n-3:n+4],numParts)
-                secondLevelCurxCenter[i,m-3,n-3] = codeParts[m,n]
+    #for i in range(10 * classificationTrainingNum):
+    #    codeParts = curX[i]
+    for m in range(23)[3:20]:
+        for n in range(23)[3:20]:
+            secondLevelCurx[:,m-3,n-3] = index_map_pooling(curX[:,m-3:m+4,n-3:n+4],numParts,(7,7),(7,7))
+            secondLevelCurxCenter[:,m-3,n-3] = curX[:,m,n]
 
     thirdLevelCurx = np.zeros((10 * classificationTrainingNum, 17,17))
     for i in range(int(10 * classificationTrainingNum)):
@@ -198,29 +200,52 @@ def trainPOP():
     if 1:    
         testImg,testLabels = ag.io.load_mnist('testing')
         testingNum = testLabels.shape[0]
-        
+        print("training extract Begin") 
         curTestX = extract(testImg, allLayer[0:2])[0]
+        print("training extract End")
         curTestX = curTestX.reshape(curTestX.shape[0:3])
         secondLevelCurTestX = np.zeros((testingNum, 17,17,1,1,numParts))
         secondLevelCurTestXCenter = np.zeros((testingNum, 17,17))
         
         import time
         start = time.time()
-        for i in range(testingNum):
-            codeParts = curTestX[i]
-            for m in range(23)[3:20]:
-                for n in range(23)[3:20]:
-                    secondLevelCurTestX[i,m-3,n-3] = partsPool(codeParts[m-3:m+4,n-3:n+4],numParts)
-                    secondLevelCurTestXCenter[i,m-3,n-3] = codeParts[m,n]
+        #for i in range(testingNum):
+        #    codeParts = curTestX[i]
+        for m in range(23)[3:20]:
+            for n in range(23)[3:20]:
+                secondLevelCurTestX[:,m-3,n-3] = index_map_pooling(curTestX[:,m-3:m+4,n-3:n+4],numParts,(7,7),(7,7))
+                secondLevelCurTestXCenter[:,m-3,n-3] = curTestX[:,m,n]
         afterPool = time.time()
         print(afterPool - start)
         thirdLevelCurTestX = np.zeros((testingNum, 17, 17))
+        featureMap = [[] for i in range(numParts)]
         for i in range(testingNum):
             for m in range(17):
                 for n in range(17):
                     if(secondLevelCurTestXCenter[i,m,n]!=-1):
                         firstLevelPartIndex = int(secondLevelCurTestXCenter[i,m,n])
-                        extractedFeaturePart = extract(np.array(secondLevelCurTestX[i,m,n][np.newaxis,:],dtype = np.uint8),allPartsLayer[firstLevelPartIndex])[0]
+                        featureMap[firstLevelPartIndex].append(np.array(secondLevelCurTestX[i,m,n],dtype = np.uint8))
+                        #extractedFeaturePart = extract(np.array(secondLevelCurTestX[i,m,n][np.newaxis,:],dtype = np.uint8),allPartsLayer[firstLevelPartIndex])[0]
+                        #thirdLevelCurTestX[i,m,n] = numSecondLayerParts * firstLevelPartIndex + extractedFeaturePart
+                    #else:
+                        #thirdLevelCurTestX[i,m,n] = -1
+        extractedFeatureMap = [Queue() for i in range(numParts)]
+        for i in range(numParts):
+            partFeatureMap = np.array(featureMap[i],dtype = np.uint8)
+            allExtractedFeature = extract(np.array(partFeatureMap),allPartsLayer[i])[0]
+            for feature in allExtractedFeature:
+                extractedFeatureMap[i].put(feature)
+        
+        for i in range(testingNum):
+            for m in range(17):
+                for n in range(17):
+                    if(secondLevelCurTestXCenter[i,m,n]!=-1):
+                        firstLevelPartIndex = int(secondLevelCurTestXCenter[i,m,n])
+                        if(extractedFeatureMap[firstLevelPartIndex].qsize()==0):
+                            print("something is wrong")
+                            extractedFeaturePart = -1
+                        else:
+                            extractedFeaturePart = extractedFeatureMap[firstLevelPartIndex].get()
                         thirdLevelCurTestX[i,m,n] = numSecondLayerParts * firstLevelPartIndex + extractedFeaturePart
                     else:
                         thirdLevelCurTestX[i,m,n] = -1

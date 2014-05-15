@@ -20,7 +20,7 @@ class MixtureClassificationLayer(SupervisedLayer):
         return True
 
     def extract(self, X_all):
-        print "mixture classification extract started"
+        #print "mixture classification extract started"
         theta = self._models[np.newaxis]
         Yhat = np.zeros(X_all.shape[0])
         if 1:
@@ -31,27 +31,26 @@ class MixtureClassificationLayer(SupervisedLayer):
                 XX =  X[:,np.newaxis,np.newaxis]
                 llh = XX * np.log(theta) + (1 - XX) * np.log(1 - theta)
                 Yhat[i:blockend] = np.argmax(np.apply_over_axes(np.sum, llh, [-3, -2, -1])[...,0,0,0].max(-1), axis=1)
-        print "mixture classification extract finished"
-        print(Yhat.shape)
+        #print "mixture classification extract finished"
+        #print(Yhat.shape)
         return Yhat 
     
     def train(self, X, Y, OriginalX = None):
         K = Y.max() + 1
-        print(np.max(X))
         mm_models = []
         for k in xrange(K):
             Xk = X[Y == k]
             #import pdb ; pdb.set_trace()
-            print(Xk.shape)
-            print(X.shape)
-            print(Y.shape)
+            #print(Xk.shape)
+            #print(X.shape)
+            #print(Y.shape)
             Xk = Xk.reshape((Xk.shape[0], -1))
             mm = BernoulliMM(n_components=self._n_components, n_iter=10, n_init=1, random_state=0, min_prob=self._min_prob,blocksize = self._block_size)
             mm.fit(Xk)
             mm_models.append(mm.means_.reshape((self._n_components,)+X.shape[1:]))
 
         self._models = np.asarray(mm_models)
-        print "mixtureclassification-layer training finished"
+        #print "mixtureclassification-layer training finished"
     
     def save_to_dict(self):
         d = {}

@@ -424,7 +424,7 @@ class BernoulliMM(BaseEstimator):
         #     plw = ag.plot.PlottingWindow(subplots=(1, self.num_mix), figsize=(self.num_mix*3, 3))
 
         for cur_init in range(self.n_init):
-            print('stageA')
+            #print('stageA')
             if self.verbose:
                 print "Current parameter initialization: {0}".format(cur_init)
 
@@ -459,7 +459,7 @@ class BernoulliMM(BaseEstimator):
             self.converged_ = False
             for i in range(self.n_iter):
                 # Expectation Step
-                print("Estep")
+                #print("Estep")
                 curr_log_likelihood, responsibilities = self.eval(X)
                 #print("responsibilities")
                 #print(responsibilities)
@@ -474,7 +474,7 @@ class BernoulliMM(BaseEstimator):
                     #pass
                     self.converged_ = True
                     break
-                print("MStep")
+                #print("MStep")
                 # ag.info("Iteration {0}: loglikelihood {1}".format(self.iterations, loglikelihood))
                 # maximization step
                 self._do_mstep(X,
@@ -517,7 +517,7 @@ class BernoulliMM(BaseEstimator):
         """ Perform the Mstep of the EM algorithm and return the class weights
         """
         weights = responsibilities.sum(axis=0)
-        print("newWeights")
+        #print("newWeights")
         #print(weights)
         if self.blocksize > 0:
             print "Multiplication For blocks"
