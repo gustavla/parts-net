@@ -398,12 +398,15 @@ class BernoulliMM(BaseEstimator):
             List of data points assumed that the dimensions are such that
             `np.prod(X.shape[1:])==n_features`
         """
+        #print(X.shape)
         random_state = check_random_state(self.random_state)
         X = np.asarray(X, dtype=self.binary_type)
         if X.ndim == 1:
             X = X[:, np.newaxis]
-
+        #print("In Fit")
+        #print(X.shape)
         data_shape = X.shape[1:]
+        #print(data_shape)
         # flatten data to just be binary vectors
         data_length = np.prod(data_shape)
         if len(data_shape) > 1:
@@ -421,6 +424,7 @@ class BernoulliMM(BaseEstimator):
         #     plw = ag.plot.PlottingWindow(subplots=(1, self.num_mix), figsize=(self.num_mix*3, 3))
 
         for cur_init in range(self.n_init):
+            print('stageA')
             if self.verbose:
                 print "Current parameter initialization: {0}".format(cur_init)
 
@@ -445,7 +449,8 @@ class BernoulliMM(BaseEstimator):
                 self.weights_ = np.tile(1.0 / self.n_components,
                                         self.n_components)
 
-
+                #print(self.n_components)
+                #print(self.weights_)
 
 
 
@@ -454,17 +459,22 @@ class BernoulliMM(BaseEstimator):
             self.converged_ = False
             for i in range(self.n_iter):
                 # Expectation Step
+                print("Estep")
                 curr_log_likelihood, responsibilities = self.eval(X)
+                #print("responsibilities")
+                #print(responsibilities)
+                #print("================")
                 log_likelihood.append(curr_log_likelihood.sum())
+                #print(log_likelihood[-1])
                 if self.verbose:
                     print "Iteration {0}: loglikelihood {1}".format(i, log_likelihood[-1])
-
                 # check for convergence
                 if i > 0 and abs(log_likelihood[-1] - log_likelihood[-2])/abs(log_likelihood[-2]) < \
                    self.thresh:
+                    #pass
                     self.converged_ = True
                     break
-
+                print("MStep")
                 # ag.info("Iteration {0}: loglikelihood {1}".format(self.iterations, loglikelihood))
                 # maximization step
                 self._do_mstep(X,
@@ -507,8 +517,10 @@ class BernoulliMM(BaseEstimator):
         """ Perform the Mstep of the EM algorithm and return the class weights
         """
         weights = responsibilities.sum(axis=0)
-
+        print("newWeights")
+        #print(weights)
         if self.blocksize > 0:
+            print "Multiplication For blocks"
             weighted_X_sum=np.zeros((weights.shape[0],X.shape[1]),dtype=self.float_type)
 
             if self.verbose:
@@ -523,10 +535,24 @@ class BernoulliMM(BaseEstimator):
             weighted_X_sum = np.dot(responsibilities.T, X)
         inverse_weights = 1.0 / (weights[:, np.newaxis] + 10 * EPS)
         if 'w' in params:
+            #print("weights")
+            #print(self.weights_)
+            #print("========")
             self.weights_ = (weights / (weights.sum() + 10 * EPS) + EPS)
-
+            #print(self.weights_)
         if 'm' in params:
+            #print("means")
+            #print(self.means_)
+            #print("========")
+            #print(np.max(weighted_X_sum * inverse_weights))
+            #print(weighted_X_sum * inverse_weights)
+            temp = np.array(self.means_)
+            #print(np.sum(self.means_ - np.clip(weighted_X_sum*inverse_weights,min_prob,1-min_prob))) 
+                    
             self.means_ = np.clip(weighted_X_sum * inverse_weights,min_prob,1-min_prob)
+            #print(self.means_)
+            #print(np.sum(self.means_ - temp))
+            
             self.log_odds_, self.log_inv_mean_sums_ = _compute_log_odds_inv_means_sums(self.means_)
 
 

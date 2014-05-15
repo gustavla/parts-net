@@ -33,7 +33,10 @@ class PartsLayer(Layer):
 
     def extract(self, X):
         assert self._parts is not None, "Must be trained before calling extract"
-
+        #print("jflkajsfjldjlajldjfljaljlf")
+        #print(X.shape)
+        #print("fdlkajkfjdljlfaljlfldjalfj")
+        #print(X.dtype)
         th = self._settings['threshold']
         part_logits = np.rollaxis(logit(self._parts).astype(np.float64), 0, 4)
         constant_terms = np.apply_over_axes(np.sum, np.log(1-self._parts).astype(np.float64), [1, 2, 3]).ravel()

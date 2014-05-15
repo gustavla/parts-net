@@ -58,7 +58,8 @@ def test2():
 
 def displayParts():
     # load the trained Image
-    X =  np.load('testNew.npy')
+    #X =  np.load('testNew.npy')
+    X = np.load('testNewPooling44.npy')
     model = X.item()
     # get the parts Layer
     numParts1 = model['layers'][1]['num_parts']
@@ -102,7 +103,7 @@ def displayParts():
         partsPlot2[k] = partsPlot2[k]/partsCodedNumber2[k]
     print(partsPlot1.shape)
     gr.images(partsPlot1,vmin = 0,vmax = 1)
-    gr.images(partsPlot2[800:1000],vmin = 0,vmax = 1)
+    gr.images(partsPlot2[0:1000],vmin = 0,vmax = 1)
     print(partsCodedNumber1)
     print("-----------------")
     print(partsCodedNumber2)
@@ -204,6 +205,7 @@ def trainPOP():
     for i in range(numParts):
         print("test")
         allPartsLayer[i][0].train_from_samples(np.array(partsRegion[i]),None)
+        print(np.array(partsRegion[i]).shape)
         extractedFeaturePart = extract(np.array(partsRegion[i],dtype = np.uint8),allPartsLayer[i])[0]
         print(extractedFeaturePart.shape)
         for j in range(len(partsRegion[i])):

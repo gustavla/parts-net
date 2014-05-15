@@ -18,6 +18,12 @@ class PartsNet(Layer):
         curX = X
         shapes = []
         for l, layer in enumerate(self._layers):
+            #print("part-net")
+            #print(layer)
+            #print(np.array(curX).shape)
+            #if isinstance(curX,tuple):
+            #    print(curX[0].shape)
+            #    print(curX[1])
             if not (not layer.supervised or (layer.supervised and Y is not None)):
                 break
 
@@ -27,7 +33,6 @@ class PartsNet(Layer):
                 ag.info('Done.')
 
             curX = layer.extract(curX) 
-
             if isinstance(curX, tuple):
                 sh = curX[0].shape[1:-1] + (curX[1],)
             else:

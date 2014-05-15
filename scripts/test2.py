@@ -5,15 +5,12 @@ import numpy as np
 import amitgroup as ag
 import os
 import pnet
+import matplotlib.pylab as plot
 def extract(ims,allLayers):
     print(allLayers)
     curX = ims
     for layer in allLayers:
-        print('-------------')
-        print(layer)
         curX = layer.extract(curX)
-        print(np.array(curX).shape)
-        print('------------------')
     return curX
 
 def test2():
@@ -21,7 +18,7 @@ def test2():
     model = X.item()
     net = pnet.PartsNet.load_from_dict(model)
     allLayer = net.layers
-    print(allLayer)
+    #print(allLayer)
     ims, labels = ag.io.load_mnist('testing')
     extractedParts = extract(ims[0:200],allLayer[0:2])
     #return extractedParts
@@ -72,7 +69,7 @@ def displayParts():
     #extractedParts11 = extract(ims[0:1000],allLayer[0:6])[1]
     #print(extractedParts11)
     extractedParts2 = extractedFeature[4]
-    print(extractedParts2.shape)
+    #print(extractedParts2.shape)
     partsPlot1 = np.zeros((numParts1,4,4))
     partsCodedNumber1 = np.zeros(numParts1)
     partsPlot2 = np.zeros((numParts2,6,6))
@@ -98,16 +95,15 @@ def displayParts():
         partsPlot1[j] = partsPlot1[j]/partsCodedNumber1[j]
     for k in range(numParts2):
         partsPlot2[k] = partsPlot2[k]/partsCodedNumber2[k]
-    print(partsPlot1.shape)
+    #print(partsPlot1.shape)
     #gr.images(partsPlot1[0:200],vmin = 0,vmax = 1)
     #gr.images(partsPlot2,vmin = 0,vmax = 1)
-    print(partsCodedNumber1)
-    print("-----------------")
-    print(partsCodedNumber2)
+    #print(partsCodedNumber1)
+    #print("-----------------")
+    #print(partsCodedNumber2)
     return partsPlot1,partsPlot2,extractedFeature
 def investigate():
     partsPlot1,partsPlot2,extractedFeature = displayParts()
-    import matplotlib.pylab as plot
     for partIndex in range(20):
         test = []
         smallerPart = []
@@ -152,7 +148,7 @@ def trainPOP():
     ims,labels = ag.io.load_mnist('training')
     trainingDataNum = 1000
     extractedFeature = extract(ims[0:trainingDataNum],allLayer[0:2])[0]
-    print(extractedFeature.shape)
+    #print(extractedFeature.shape)
     extractedFeature = extractedFeature.reshape(extractedFeature.shape[0:3])
     partsPlot = np.zeros((numParts,6,6))
     partsCodedNumber = np.zeros(numParts)
@@ -172,6 +168,7 @@ def trainPOP():
         partsPlot[j] = partsPlot[j]/partsCodedNumber[j]
 
 
+    secondLayerCodedNumber = 0
     if 1:
         for i in range(trainingDataNum):
             codeParts = extractedFeature[i]
@@ -179,46 +176,69 @@ def trainPOP():
                 for n in range(23)[3:20]:
                     if(codeParts[m,n]!=-1):
                         imgRegion[codeParts[m,n]].append(ims[i,m-3:m+9,n-3:n+9])
+                        secondLayerCodedNumber+=1
                         partsGrid = partsPool(codeParts[m-3:m+4,n-3:n+4],numParts)
                         partsRegion[codeParts[m,n]].append(partsGrid)
 
     for i in range(numParts):
         print(len(partsRegion[i]))
-    
-    allPartsLayer = [[pnet.PartsLayer(10,(1,1),settings=dict(outer_frame=0,threshold=5,
+   
+    ##Second-Layer Parts
+    numSecondLayerParts = 20  
+    allPartsLayer = [[pnet.PartsLayer(numSecondLayerParts,(1,1),settings=dict(outer_frame=0,threshold=5,
                                                             sample_per_image=1,
                                                             max_samples=10000,
                                                             min_prob=0.005))] for i in range(numParts)]
-    allPartsLayerImg = np.zeros((numParts,10,12,12)) 
+    allPartsLayerImg = np.zeros((numParts,numSecondLayerParts,12,12)) 
     
-    allPartsLayerImgNumber = np.zeros((numParts,10))
+    allPartsLayerImgNumber = np.zeros((numParts,numSecondLayerParts))
    
-    print("====================================================") 
+    #print("====================================================") 
     
+    zeroParts = 0
     for i in range(numParts):
-        print("test")
+        #print("test")
         allPartsLayer[i][0].train_from_samples(np.array(partsRegion[i]),None)
         extractedFeaturePart = extract(np.array(partsRegion[i],dtype = np.uint8),allPartsLayer[i])[0]
-        print(extractedFeaturePart.shape)
+        #print(extractedFeaturePart.shape)
         for j in range(len(partsRegion[i])):
             if(extractedFeaturePart[j,0,0,0]!=-1):
                 partIndex = extractedFeaturePart[j,0,0,0]
                 allPartsLayerImg[i,partIndex]+=imgRegion[i][j]
                 allPartsLayerImgNumber[i,partIndex]+=1
-    
+            else:
+                zeroParts+=1
     for i in range(numParts):
-        for j in range(10):
+        for j in range(numSecondLayerParts):
             allPartsLayerImg[i,j] = allPartsLayerImg[i,j]/allPartsLayerImgNumber[i,j] 
-
-    print(allPartsLayerImgNumber)
-    allPartsPlot = np.zeros((20,11,12,12))
-    gr.images(partsPlot.reshape(numParts,6,6),zero_to_one=False,vmin = 0, vmax = 1)
-    allPartsPlot[:,0] = 0.5
-    allPartsPlot[:,0,3:9,3:9] = partsPlot[20:40]
-    allPartsPlot[:,1:,:,:] = allPartsLayerImg[20:40]
-    gr.images(allPartsPlot.reshape(220,12,12),zero_to_one=False, vmin = 0, vmax =1)
-
-
+        print(allPartsLayer[i][0]._weights)
+    #print(zeroParts)
+    #print(np.sum(allPartsLayerImgNumber),secondLayerCodedNumber)
+    settings = {'interpolation':'nearest','cmap':plot.cm.gray,}
+    settings['vmin'] = 0
+    settings['vmax'] = 1
+    plotData = np.ones((14*100+2,14*(numSecondLayerParts + 1)+2))*0.8
+    visualShiftParts = 0
+    if 0:
+        allPartsPlot = np.zeros((20,11,12,12))
+        gr.images(partsPlot.reshape(numParts,6,6),zero_to_one=False,vmin = 0, vmax = 1)
+        allPartsPlot[:,0] = 0.5
+        allPartsPlot[:,0,3:9,3:9] = partsPlot[20:40]
+        allPartsPlot[:,1:,:,:] = allPartsLayerImg[20:40]
+        gr.images(allPartsPlot.reshape(220,12,12),zero_to_one=False, vmin = 0, vmax =1)
+    elif 0:
+        for i in range(numSecondLayerParts + 1):
+            for j in range(100):
+                if i == 0:
+                    plotData[5 + j * 14:11 + j * 14, 5 + i * 14: 11 + i * 14] = partsPlot[j+visualShiftParts]
+                else:
+                    plotData[2 + j * 14:14 + j * 14,2 + i * 14: 14 + i * 14] = allPartsLayerImg[j+visualShiftParts,i-1]
+        plot.figure(figsize=(10,40))
+        plot.axis('off')
+        plot.imshow(plotData, **settings)
+        plot.savefig('test.pdf',format='pdf',dpi=900)
+    else:
+        pass
 
 
 
