@@ -3,6 +3,8 @@ from pnet.layer import Layer
 import numpy as np
 import amitgroup as ag
 from pnet.bernoullimm import BernoulliMM
+from scipy.special import logit
+
 
 @Layer.register('mixture-classification-layer')
 class MixtureClassificationLayer(SupervisedLayer):
@@ -10,7 +12,7 @@ class MixtureClassificationLayer(SupervisedLayer):
         self._n_components = n_components
         self._min_prob = min_prob
         self._models = None
-
+        self._settings = settings
 
     @property
     def trained(self):
@@ -29,14 +31,27 @@ class MixtureClassificationLayer(SupervisedLayer):
         #print('Z', Z.shape)
         #print('mm', mm.shape)
 
-        llh = XX * np.log(theta) + (1 - XX) * np.log(1 - theta)
-        Yhat = np.argmax(np.apply_over_axes(np.sum, llh, [-3, -2, -1])[...,0,0,0].max(-1), axis=1)
+        S = self._settings.get('standardize')
+        if S:
+            llh = XX * logit(theta) 
+            bb = np.apply_over_axes(np.sum, llh, [-3, -2, -1])[...,0,0,0]
+            bb = (bb - self._means) / self._sigmas
+            Yhat = np.argmax(bb.max(-1), axis=1)
+        else:
+            llh = XX * np.log(theta) + (1 - XX) * np.log(1 - theta)
+            bb = np.apply_over_axes(np.sum, llh, [-3, -2, -1])[...,0,0,0]
+            Yhat = np.argmax(bb.max(-1), axis=1)
         return Yhat 
     
     def train(self, X, Y):
         K = Y.max() + 1
 
         mm_models = []
+        S = self._settings.get('standardize')
+        if S:
+            self._means = np.zeros((K, self._n_components))
+            self._sigmas = np.zeros((K, self._n_components))
+
         for k in xrange(K):
             Xk = X[Y == k]
             Xk = Xk.reshape((Xk.shape[0], -1))
@@ -48,7 +63,16 @@ class MixtureClassificationLayer(SupervisedLayer):
                              min_prob=self._min_prob,
                              blocksize=200)
             mm.fit(Xk)
-            mm_models.append(mm.means_.reshape((self._n_components,)+X.shape[1:]))
+
+
+            mu = mm.means_.reshape((self._n_components,)+X.shape[1:])
+            mm_models.append(mu)
+
+            # Add standardization
+            if S:
+                self._means[k] = np.apply_over_axes(np.sum, mu * logit(mu), [1, 2, 3]).ravel()
+                self._sigmas[k] = np.sqrt(np.apply_over_axes(np.sum, logit(mu)**2 * mu * (1 - mu), [1, 2, 3]).ravel())
+
 
         self._models = np.asarray(mm_models)
 

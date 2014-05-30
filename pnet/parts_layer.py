@@ -1,9 +1,5 @@
 from __future__ import division, print_function, absolute_import 
 
-# TODO: Temp
-import matplotlib as mpl
-mpl.use('Agg')
-
 from scipy.special import logit
 import numpy as np
 import itertools as itr
@@ -62,6 +58,7 @@ class PartsLayer(Layer):
                                              min_percentile=self._settings.get('min_percentile', 0.0))
         
         return (feature_map, self._num_parts)
+
     @property
     def trained(self):
         return self._parts is not None 
