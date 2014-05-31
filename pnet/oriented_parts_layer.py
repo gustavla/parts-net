@@ -6,7 +6,7 @@ import itertools as itr
 import amitgroup as ag
 from pnet.layer import Layer
 import pnet
-import gv
+import pnet.matrix
 import random
 
 # TODO: Use later
@@ -27,21 +27,6 @@ def _extract_many_edges(bedges_settings, settings, images, must_preserve_size=Fa
     edge_type = settings.get('edge_type', 'yali')
     if edge_type == 'yali':
         X = ag.features.bedges(images, **sett)
-        return X
-    elif edge_type == 'adaptive':
-        assert images.ndim == 3
-        from gv.adaptive_bedges import adaptive_bedges
-        return adaptive_bedges(images, **sett)
-    elif edge_type == 'new':
-        X = np.asarray([gv.gradients.extract(image, 
-                                    orientations=settings.get('edge_orientations', 8), 
-                                    threshold=settings.get('threshold2', 0.001),
-                                    eps=settings.get('eps', 0.001), 
-                                    blur_size=settings.get('blur_size', 10)) for image in images])
-
-        if sett.get('contrast_insensitive'):
-            D = X.shape[-1]
-            X = (X[...,:D//2] + X[...,D//2:]).clip(max=1)
         return X
     else:
         raise RuntimeError("No such edge type")
@@ -224,10 +209,6 @@ class OrientedPartsLayer(Layer):
 
         # LEAVE-BEHIND
 
-        # Fetch all rotations of this image
-        #img = gv.img.load_image(filename)
-        #img = gv.img.asgray(img)
-
         from skimage import transform
 
         for n, img in enumerate(X):
@@ -248,7 +229,7 @@ class OrientedPartsLayer(Layer):
             # Set up matrices that will translate a position in the canonical image to
             # the rotated iamges. This way, we're not rotating each patch on demand, which
             # will end up slower.
-            matrices = [gv.matrix.translation(new_size/2, new_size/2) * gv.matrix.rotation(a) * gv.matrix.translation(-new_size/2, -new_size/2) for a in radians]
+            matrices = [pnet.matrix.translation(new_size/2, new_size/2) * pnet.matrix.rotation(a) * pnet.matrix.translation(-new_size/2, -new_size/2) for a in radians]
 
             # Add matrices for the polarity flips too, if applicable
             matrices *= POL 
@@ -357,13 +338,6 @@ class OrientedPartsLayer(Layer):
                             return np.asarray(the_patches), np.asarray(the_originals)
 
                         break
-
-                    if 0:
-                        from pnet.vzlog import default as vz
-
-                        im = unspread_edgepatch.mean(-1) 
-                        vz.log(im.sum())
-                        gv.img.save_image(vz.generate_filename(), im)
 
                     if tries == 99:
                             print("100 tries!")
