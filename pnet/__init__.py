@@ -6,6 +6,7 @@ from .edge_layer import EdgeLayer
 from .pooling_layer import PoolingLayer
 from .parts_layer import PartsLayer
 from .gaussian_parts_layer import GaussianPartsLayer
+from .oriented_parts_layer import OrientedPartsLayer
 from .hierarchical_parts_layer import HierarchicalPartsLayer
 from .binary_tree_parts_layer import BinaryTreePartsLayer
 from .random_forest_parts_layer import RandomForestPartsLayer
