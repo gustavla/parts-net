@@ -129,7 +129,7 @@ class OrientedPartsLayer(Layer):
         n_iter = self._settings.get('n_iter', 10)
         seed = self._settings.get('em_seed', 0)
 
-        mm = PermutationMM(n_components=self._num_true_parts, permutations=permutations, n_iter=n_init, n_init=n_iter, random_state=seed, min_probability=min_prob)
+        mm = PermutationMM(n_components=self._num_true_parts, permutations=permutations, n_iter=n_iter, n_init=n_init, random_state=seed, min_probability=min_prob)
         #import IPython
         #IPython.embed()
 
