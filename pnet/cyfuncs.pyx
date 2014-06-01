@@ -656,6 +656,7 @@ def code_index_map_general(np.ndarray[ndim=4,dtype=np.uint8_t] X,
                            outer_frame=0, 
                            int n_coded=1, 
                            int standardize=0,
+                           int max_threshold=10000,
                            min_percentile=None):
     cdef unsigned int part_x_dim = parts.shape[1]
     cdef unsigned int part_y_dim = parts.shape[2]
@@ -779,7 +780,7 @@ def code_index_map_general(np.ndarray[ndim=4,dtype=np.uint8_t] X,
                         integral_counts[cx1, cy0] + \
                         integral_counts[cx0, cy0]
 
-                if threshold <= count:
+                if threshold <= count <= max_threshold:
                     vs[:] = constant_terms
                     with nogil:
                         for i in range(part_x_dim):

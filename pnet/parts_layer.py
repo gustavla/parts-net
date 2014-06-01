@@ -167,6 +167,7 @@ class PartsLayer(Layer):
         rs = np.random.RandomState(self._settings.get('patch_extraction_seed', 0))
 
         th = self._settings['threshold']
+        max_th = self._settings.get('max_threshold', np.inf)
         support_mask = self._settings.get('support_mask')
 
         consecutive_failures = 0
@@ -196,7 +197,7 @@ class PartsLayer(Layer):
                     else:
                         tot = patch[fr:-fr,fr:-fr].sum()
 
-                    if th <= tot: 
+                    if th <= tot <= max_th: 
                         patches.append(patch)
                         if len(patches) >= self._settings.get('max_samples', np.inf):
                             return np.asarray(patches)

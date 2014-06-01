@@ -89,12 +89,12 @@ class OrientedPartsLayer(Layer):
                 for i in xrange(rotspread*2 + 1):
                     between_feature_spreading[f,i] = thepart * ORI + (ori - rotspread + i) % ORI
 
-        # Adding -1 at the end makes -1 map to -1.
-        bb = np.concatenate([between_feature_spreading, -np.ones((1, 3), dtype=np.int64)], 0)
+            bb = np.concatenate([between_feature_spreading, -np.ones((1, rotspread*2 + 1), dtype=np.int64)], 0)
 
-        feature_map_spread = bb[feature_map[...,0]]
+            # Update feature map
+            feature_map = bb[feature_map[...,0]]
         
-        return (feature_map_spread, self._num_parts)
+        return (feature_map, self._num_parts)
 
     @property
     def trained(self):
@@ -220,7 +220,7 @@ class OrientedPartsLayer(Layer):
 
             angles = np.arange(0, 360, 360/ORI)
             radians = angles*np.pi/180
-            all_img = np.asarray([transform.rotate(img_padded, angle, resize=False) for angle in angles])
+            all_img = np.asarray([transform.rotate(img_padded, angle, resize=False, mode='mirror') for angle in angles])
             # Add inverted polarity too
             if POL == 2:
                 all_img = np.concatenate([all_img, 1-all_img])
@@ -388,24 +388,23 @@ class OrientedPartsLayer(Layer):
     def save_to_dict(self):
         d = {}
         d['num_parts'] = self._num_parts
+        d['num_orientations'] = self._num_orientations
         d['part_shape'] = self._part_shape
         d['settings'] = self._settings
 
         d['parts'] = self._parts
-        d['keypoints'] = self._keypoints
-        d['weights'] = self._weights
+        #d['weights'] = self._weights
         return d
 
     @classmethod
     def load_from_dict(cls, d):
-        obj = cls(d['num_parts'], d['part_shape'], settings=d['settings'])
+        obj = cls(d['num_parts'], d['num_orientations'], d['part_shape'], settings=d['settings'])
         obj._parts = d['parts']
-        obj._keypoints = d.get('keypoints')
-        obj._weights = d['weights']
+        #obj._weights = d['weights']
         return obj
 
     def __repr__(self):
-        return 'PartsLayer(num_parts={num_parts}, part_shape={part_shape}, settings={settings})'.format(
+        return 'OrientedPartsLayer(num_parts={num_parts}, part_shape={part_shape}, settings={settings})'.format(
                     num_parts=self._num_parts,
                     part_shape=self._part_shape,
                     settings=self._settings)
