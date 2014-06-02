@@ -45,7 +45,7 @@ class MixtureClassificationLayer(SupervisedLayer):
     
     def train(self, X, Y):
         K = Y.max() + 1
-
+        print(Y)
         mm_models = []
         S = self._settings.get('standardize')
         if S:

@@ -6,7 +6,7 @@ from scipy.special import logit
 from scipy.misc import logsumexp
 
 # TEMP
-import vz
+#import vz
 
 class PermutationMM(object):
     def __init__(self, n_components=1, permutations=1, n_iter=20, n_init=1, random_state=0, min_probability=0.05, thresh=1e-8):
