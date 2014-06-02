@@ -398,7 +398,12 @@ class OrientedPartsLayer(Layer):
 
     @classmethod
     def load_from_dict(cls, d):
-        obj = cls(d['num_true_parts'], d['num_orientations'], d['part_shape'], settings=d['settings'])
+        # This code is just temporary {
+        num_true_parts = d.get('num_true_parts')
+        if num_true_parts is None:
+            num_true_parts = int(d['num_parts'] // d['num_orientations'])
+        # }
+        obj = cls(num_true_parts, d['num_orientations'], d['part_shape'], settings=d['settings'])
         obj._parts = d['parts']
         #obj._weights = d['weights']
         return obj
