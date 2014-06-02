@@ -94,7 +94,7 @@ class OrientedPartsLayer(Layer):
             # Update feature map
             feature_map = bb[feature_map[...,0]]
         
-        return (feature_map, self._num_parts)
+        return (feature_map, self._num_parts, self._num_orientations)
 
     @property
     def trained(self):
@@ -387,7 +387,7 @@ class OrientedPartsLayer(Layer):
 
     def save_to_dict(self):
         d = {}
-        d['num_parts'] = self._num_parts
+        d['num_true_parts'] = self._num_true_parts
         d['num_orientations'] = self._num_orientations
         d['part_shape'] = self._part_shape
         d['settings'] = self._settings
@@ -398,7 +398,7 @@ class OrientedPartsLayer(Layer):
 
     @classmethod
     def load_from_dict(cls, d):
-        obj = cls(d['num_parts'], d['num_orientations'], d['part_shape'], settings=d['settings'])
+        obj = cls(d['num_true_parts'], d['num_orientations'], d['part_shape'], settings=d['settings'])
         obj._parts = d['parts']
         #obj._weights = d['weights']
         return obj

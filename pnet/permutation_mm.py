@@ -1,12 +1,9 @@
-
+from __future__ import division, print_function, absolute_import
 import numpy as np
 import itertools as itr
 import amitgroup as ag
 from scipy.special import logit
 from scipy.misc import logsumexp
-
-# TEMP
-import vz
 
 class PermutationMM(object):
     def __init__(self, n_components=1, permutations=1, n_iter=20, n_init=1, random_state=0, min_probability=0.05, thresh=1e-8):
@@ -128,6 +125,15 @@ class PermutationMM(object):
                 #new parts
                 #pi[:] = np.apply_over_axes(np.sum, self.q, [0, 2])[0,:,0] / N
                 pi[:] = np.apply_over_axes(np.sum, self.q, [0])[0,:,:] / N
+
+                if 0:
+                    for k in xrange(K):
+                        if pi[k,0] == 0:
+                            # Randomize this component
+                            # It will be clipped soon
+                            print("Randomizing component", k)
+                            theta[k] = self.random_state.uniform(size=(P, F))
+
                 pi[:] = np.clip(pi, 0.0001, 1 - 0.0001)
 
                 # TODO: KEEP THIS?
@@ -148,7 +154,7 @@ class PermutationMM(object):
             all_mu.append(theta)
             all_loglikelihoods.append(loglikelihood)
 
-        print all_loglikelihoods
+        print(all_loglikelihoods)
         best_i = np.argmax(all_loglikelihoods)
         self.weights_ = all_pi[best_i]
         self.means_ = all_mu[best_i]

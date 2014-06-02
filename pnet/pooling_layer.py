@@ -13,7 +13,8 @@ class PoolingLayer(Layer):
         self._extract_info = {}
 
     def extract(self, X_F):
-        X, F = X_F 
+        X = X_F[0]
+        F = X_F[1]
 
         #if X.ndim == 3:
             #from pnet.cyfuncs import index_map_pooling as poolf

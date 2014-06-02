@@ -99,3 +99,24 @@ def parse_rotation(path=None):
     #amit.hdf5.save(os.path.join(path, filename), data)
 
     return data
+
+def parse_rotation_images(path=None):
+    if path is None:
+        path = os.environ['ROTBKG_MNIST']
+
+    # Parse training images.
+    training = np.loadtxt(os.path.join(path, 'mnist_all_background_images_rotation_normalized_train_valid.amat'))
+    training_image = np.ascontiguousarray((training[:,:-1] * 255).astype(np.uint8).reshape((-1,28,28)).transpose((0,2,1)))
+    training_label = (training[:,-1]).astype(np.uint8)
+    
+    # Parse test images.
+    test = np.loadtxt(os.path.join(path, 'mnist_all_background_images_rotation_normalized_test.amat'))
+    test_image = np.ascontiguousarray((test[:,:-1] * 255).astype(np.uint8).reshape((-1,28,28)).transpose((0,2,1)))
+    test_label = (test[:,-1]).astype(np.uint8)
+
+    # Save together.
+    data = {'training_image':training_image.astype(np.float64)/255.0, 'training_label':training_label,
+            'test_image':test_image.astype(np.float64)/255.0, 'test_label':test_label}
+    #amit.hdf5.save(os.path.join(path, filename), data)
+
+    return data
