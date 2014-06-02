@@ -162,7 +162,8 @@ if pnet.parallel.main(__name__):
         digits = range(10)
         #ims = ag.io.load_mnist('training', selection=slice(0 + 3000 * training_seed, TRAIN_SAMPLES + 3000 * training_seed), return_labels=False)
         ims = mnist_data['training_image'][0 + 1000 * training_seed : TRAIN_SAMPLES + 1000 * training_seed]
-
+        validation_ims = mnist_data['training_image'][:2000]
+        validation_label = mnist_data['training_label'][:2000]
         #print(net.sizes(X[[0]]))
         print(ims.shape)
         start0 = time.time()
@@ -198,7 +199,8 @@ if pnet.parallel.main(__name__):
         corrects = 0
         total = 0
         test_ims, test_labels = mnist_data['test_image'], mnist_data['test_label']
-
+        test_ims = validation_ims
+        test_labels = validation_label
         # TEMP
         if 0:
             test_ims = test_ims[:1000]

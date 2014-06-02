@@ -220,7 +220,7 @@ class OrientedPartsLayer(Layer):
 
             angles = np.arange(0, 360, 360/ORI)
             radians = angles*np.pi/180
-            all_img = np.asarray([transform.rotate(img_padded, angle, resize=False, mode='mirror') for angle in angles])
+            all_img = np.asarray([transform.rotate(img_padded, angle, resize=False, mode='nearest') for angle in angles])
             # Add inverted polarity too
             if POL == 2:
                 all_img = np.concatenate([all_img, 1-all_img])

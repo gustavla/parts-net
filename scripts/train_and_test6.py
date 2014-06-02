@@ -41,8 +41,8 @@ if pnet.parallel.main(__name__):
 
     print("2")
     # Switch which experiment here
-    #from pnet.mnist_danny import parse_background_random as loadf
-    from pnet.mnist_danny import parse_background_images as loadf
+    from pnet.mnist_danny import parse_background_random as loadf
+    #from pnet.mnist_danny import parse_background_images as loadf
     print("Loading...")
     mnist_data = loadf()
     print("Done.")
@@ -50,13 +50,13 @@ if pnet.parallel.main(__name__):
     for training_seed in xrange(1):
         layers = [
             #pnet.IntensityThresholdLayer(),
-            pnet.EdgeLayer(k=5, radius=1, spread='orthogonal', minimum_contrast=0.05),#, pre_blurring=1.0),
+            pnet.EdgeLayer(k=5, radius=1, spread='orthogonal', minimum_contrast=0.08),#, pre_blurring=1.0),
             #pnet.IntensityThresholdLayer(),
             #pnet.IntensityThresholdLayer(),
        
-            pnet.PartsLayer(1000, (5, 5), settings=dict(outer_frame=1, 
+            pnet.PartsLayer(1000, (7, 7), settings=dict(outer_frame=2, 
                                                       em_seed=training_seed,
-                                                      threshold=2, 
+                                                      threshold=4, 
                                                       samples_per_image=40, 
                                                       max_samples=200000,
                                                       train_limit=10000,
@@ -156,13 +156,18 @@ if pnet.parallel.main(__name__):
         ]
 
         net = pnet.PartsNet(layers)
-        TRAIN_SAMPLES = 12000 
+        TRAIN_SAMPLES = 10000 
         #TRAIN_SAMPLES = 1200 
-
+        print(training_seed)
         digits = range(10)
         #ims = ag.io.load_mnist('training', selection=slice(0 + 3000 * training_seed, TRAIN_SAMPLES + 3000 * training_seed), return_labels=False)
         ims = mnist_data['training_image'][0 + 1000 * training_seed : TRAIN_SAMPLES + 1000 * training_seed]
-
+        ims_label = mnist_data['training_label'][0 + 1000 * training_seed : TRAIN_SAMPLES + 1000 * training_seed]
+        validation_ims = mnist_data['training_image'][10000:12000]
+        validation_label = mnist_data['training_label'][10000:12000]
+        print("==============")
+        print(ims_label.shape)
+        print(type(ims_label))
         #print(net.sizes(X[[0]]))
         print(ims.shape)
         start0 = time.time()
@@ -176,10 +181,10 @@ if pnet.parallel.main(__name__):
         # Load supervised training data
         for d in digits:
             if N is None:
-                ims0 = mnist_data['training_image'][mnist_data['training_label'] == d]
+                ims0 = ims[ims_label == d]
             else:
                 #ims0 = ag.io.load_mnist('training', [d], selection=slice(N*training_seed, N*(1+training_seed)), return_labels=False)
-                ims0 = mnist_data['training_image'][mnist_data['training_label'] == d][N*training_seed:N*(1+training_seed)]
+                ims0 = ims[ims_label == d]
             sup_ims.append(ims0)
             sup_labels.append(d * np.ones(len(ims0), dtype=np.int64))
 
@@ -198,7 +203,8 @@ if pnet.parallel.main(__name__):
         corrects = 0
         total = 0
         test_ims, test_labels = mnist_data['test_image'], mnist_data['test_label']
-
+        test_ims = validation_ims
+        test_labels = validation_label
         # TEMP
         if 0:
             test_ims = test_ims[:1000]

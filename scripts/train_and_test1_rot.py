@@ -9,7 +9,7 @@ import amitgroup as ag
 import itertools as itr
 import sys
 import os
-import gv
+#import gv
 
 import pnet
 import time
@@ -137,7 +137,7 @@ if pnet.parallel.main(__name__):
         def format_error_rate(pr):
             return "{:.2f}%".format(100*(1-pr))
 
-        import gv
+        #import gv
         #with gv.Timer('Testing'):
         start2 = time.time()
         args = (tup+(net,) for tup in itr.izip(ims_batches, labels_batches))

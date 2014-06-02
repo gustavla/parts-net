@@ -58,10 +58,14 @@ def parse_background_images(path=None):
 
     return data
 
+<<<<<<< HEAD
 
 
 
 def parse_basic_mnist(path=None):
+=======
+def parse_basic(path=None):
+>>>>>>> 019b90c462ba3a85d703a16ecab0417f63585f86
     if path is None:
         path = os.environ['BASIC_MNIST']
 
@@ -82,10 +86,14 @@ def parse_basic_mnist(path=None):
 
     return data
 
+<<<<<<< HEAD
 
 
 
 def parse_rotated_mnist(path=None):
+=======
+def parse_rotation(path=None):
+>>>>>>> 019b90c462ba3a85d703a16ecab0417f63585f86
     if path is None:
         path = os.environ['ROT_MNIST']
 
@@ -106,6 +114,7 @@ def parse_rotated_mnist(path=None):
 
     return data
 
+<<<<<<< HEAD
 
 
 
@@ -113,6 +122,11 @@ def parse_rotated_mnist(path=None):
 def parse_rotated_img_mnist(path=None):
     if path is None:
         path = os.environ['ROT_IMG_MNIST']
+=======
+def parse_rotation_images(path=None):
+    if path is None:
+        path = os.environ['ROTBKG_MNIST']
+>>>>>>> 019b90c462ba3a85d703a16ecab0417f63585f86
 
     # Parse training images.
     training = np.loadtxt(os.path.join(path, 'mnist_all_background_images_rotation_normalized_train_valid.amat'))
