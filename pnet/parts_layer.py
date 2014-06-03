@@ -92,34 +92,51 @@ class PartsLayer(Layer):
 
         flatpatches = kp_patches.reshape((kp_patches.shape[0], -1))
 
-        mm = BernoulliMM(n_components=self._num_parts, 
-                         n_iter=20, 
-                         tol=1e-15,
-                         n_init=2, 
-                         random_state=self._settings.get('em_seed', 0), 
-                         min_prob=min_prob, 
-                         verbose=False)
-        mm.fit(flatpatches)
+        if 0:
+            mm = BernoulliMM(n_components=self._num_parts, 
+                             n_iter=20, 
+                             tol=1e-15,
+                             n_init=2, 
+                             random_state=self._settings.get('em_seed', 0), 
+                             min_prob=min_prob, 
+                             verbose=False)
+            mm.fit(flatpatches)
 
-        Hall = (mm.means_ * np.log(mm.means_) + (1 - mm.means_) * np.log(1 - mm.means_))
+            means = mm.means_
+            weights = mm.weights_
+            if support_mask is not None:
+                self._parts = 0.5 * np.ones((self._num_parts,) + patches.shape[1:])
+                self._parts[:,support_mask] = means.reshape((self._parts.shape[0], -1, self._parts.shape[-1]))
+            else:
+                self._parts = means.reshape((self._num_parts,)+patches.shape[1:])
+        else:
+            from pnet.bernoulli import em      
+            ret = em(flatpatches, self._num_parts, 20,
+                     numpy_rng=self._settings.get('em_seed', 0),
+                     verbose=True)
+
+            means = ret[1].reshape((self._num_parts,) + patches.shape[1:])
+            weights = np.arange(self._num_parts)
+
+            self._parts = means
+
+
+
+        Hall = (means * np.log(means) + (1 - means) * np.log(1 - means))
         H = -Hall.mean(-1)
 
-        if support_mask is not None:
-            self._parts = 0.5 * np.ones((self._num_parts,) + patches.shape[1:])
-            self._parts[:,support_mask] = mm.means_.reshape((self._parts.shape[0], -1, self._parts.shape[-1]))
-        else:
-            self._parts = mm.means_.reshape((self._num_parts,)+patches.shape[1:])
-        self._weights = mm.weights_
+        self._weights = weights 
 
         # Calculate entropy of parts
 
         # Sort by entropy
-        II = np.argsort(H)
+        if 0:
+            II = np.argsort(H)
 
-        self._parts = self._parts[II]
+            self._parts = self._parts[II]
 
-        self._num_parts = II.shape[0]
-        self._train_info['entropy'] = H[II]
+            self._num_parts = II.shape[0]
+            self._train_info['entropy'] = H[II]
 
 
         # Reject some parts

@@ -46,7 +46,6 @@ class MixtureClassificationLayer(SupervisedLayer):
     
     def train(self, X, Y):
         K = Y.max() + 1
-        print(Y)
         mm_models = []
         S = self._settings.get('standardize')
         if S:
@@ -57,16 +56,24 @@ class MixtureClassificationLayer(SupervisedLayer):
             Xk = X[Y == k]
             Xk = Xk.reshape((Xk.shape[0], -1))
 
-            mm = BernoulliMM(n_components=self._n_components, 
-                             n_iter=10, 
-                             n_init=1, 
-                             random_state=0, 
-                             min_prob=self._min_prob,
-                             blocksize=200)
-            mm.fit(Xk)
+            if 1:
+                mm = BernoulliMM(n_components=self._n_components, 
+                                 n_iter=10, 
+                                 n_init=1, 
+                                 random_state=self._settings.get('seed', 0), 
+                                 min_prob=self._min_prob,
+                                 blocksize=200)
+                mm.fit(Xk)
 
 
-            mu = mm.means_.reshape((self._n_components,)+X.shape[1:])
+                mu = mm.means_.reshape((self._n_components,)+X.shape[1:])
+            else:
+                from pnet.bernoulli import em
+                ret = em(Xk, self._n_components, 10,
+                         numpy_rng=self._settings.get('seed', 0),
+                         verbose=True)
+
+                mu = ret[1].reshape((self._n_components,)+X.shape[1:])
             mm_models.append(mu)
 
             # Add standardization

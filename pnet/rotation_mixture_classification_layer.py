@@ -60,41 +60,65 @@ class RotationMixtureClassificationLayer(SupervisedLayer):
         for k in xrange(K):
             Xk = X[Y == k]
 
+            assert Xk.shape[-1] == 1
+
+
             from pnet.cyfuncs import index_map_pooling_multi, orientation_pooling
 
             # Rotate all the Xk samples
 
+            print('A')
             XB = index_map_pooling_multi(Xk, num_parts, (1, 1), (1, 1))
+            print('B')
             XB = XB.reshape(XB.shape[:-1] + (num_true_parts, num_orientations))
 
             from pnet.more_danny import rotate_patch_map
 
             blocks = [] 
 
+            print('C')
             for ori in xrange(0, self._n_orientations):
                 angle = ori / self._n_orientations * 360
                 # Rotate all images, apply rotational spreading, then do pooling
 
-                rots = np.asarray([rotate_patch_map(XB[i], angle) for i in xrange(XB.shape[0])])
+                if 0:
+                    print(ori, 'R{')
+                    rots = np.asarray([rotate_patch_map(XB[i], angle) for i in xrange(XB.shape[0])])
+                    print(ori, 'R}')
 
 
-                yy = orientation_pooling(rots, 
-                                         self._pooling_settings['shape'],
-                                         self._pooling_settings['strides'],
-                                         self._pooling_settings.get('rotation_spreading_radius', 0))
+                    print(ori, 'P{')
+                    yy = orientation_pooling(rots, 
+                                             self._pooling_settings['shape'],
+                                             self._pooling_settings['strides'],
+                                             self._pooling_settings.get('rotation_spreading_radius', 0))
+                    print(ori, 'P}')
+
+                from pnet.cyfuncs import rotate_index_map_pooling 
+
+
+
+                yy1 = rotate_index_map_pooling(Xk[...,0], angle, self._pooling_settings.get('rotation_spreading_radius', 0),
+                                               num_orientations, 
+                                               num_parts,
+                                               self._pooling_settings['shape'])
+
+                yy = yy1.reshape(yy1.shape[:3] + (num_orientations, num_true_parts))
 
                 blocks.append(yy)#.reshape(yy.shape[:-2] + (-1,)))
 
             blocks = np.asarray(blocks).transpose((1, 0, 2, 3, 4, 5))
+            print('D')
 
-            from pnet.vzlog import default as vz
+            if 0:
+                from pnet.vzlog import default as vz
 
-            import gv
+                import gv
 
-            for i in xrange(self._n_orientations):
-                gv.img.save_image(vz.generate_filename(), blocks[0,i,:,:,0].sum(-1))
+                for i in xrange(self._n_orientations):
+                    gv.img.save_image(vz.generate_filename(), blocks[0,i,:,:,0].sum(-1))
 
-            vz.finalize()
+                vz.finalize()
 
             shape = blocks.shape[2:4] + (np.prod(blocks.shape[4:]),)
 
@@ -120,7 +144,7 @@ class RotationMixtureClassificationLayer(SupervisedLayer):
             lookup = dict(zip(itr.product(PP, RR), itr.count()))
             permutations = np.asarray([[lookup[ii] for ii in rows] for rows in II])
 
-            print(permutations)
+            print('E')
 
             if 0:
                 mm = PermutationMM(n_components=self._n_components, 
@@ -144,17 +168,22 @@ class RotationMixtureClassificationLayer(SupervisedLayer):
 
                 from pnet.bernoulli import em      
 
+
                 XX = blocks.reshape((blocks.shape[0], -1))
+                print('F')
                 ret = em(XX, self._n_components, n_iter,
                          permutation=permutation, numpy_rng=seed,
                          verbose=True)
+                print('G')
 
                 self._extra['training_comp'].append(ret[3])
 
                 mu = ret[1].reshape((self._n_components * self._n_orientations,) + shape)
 
+
             
             mm_models.append(mu)
+            print('H')
 
 
         self._models = np.asarray(mm_models)

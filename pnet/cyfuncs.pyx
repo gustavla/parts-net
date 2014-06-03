@@ -8,7 +8,7 @@ import cython
 import numpy as np
 cimport numpy as np
 cimport cython
-from libc.math cimport exp, abs, fabs, fmax, fmin, log, pow, sqrt
+from libc.math cimport exp, abs, fabs, fmax, fmin, log, pow, sqrt, sin, cos, floor
 from libc.stdlib cimport rand, srand 
 from cpython cimport bool
 
@@ -646,6 +646,84 @@ def orientation_pooling(np.ndarray[ndim=5,dtype=np.uint8_t] X,
                                             feat_mv[n,i,j,z,(r-rs)%num_orientations] = 1
      
      
+      
+    return feature_map 
+
+def rotate_index_map_pooling(np.ndarray[ndim=3,dtype=np.int64_t] part_index_map, 
+                             np.float64_t angle,
+                             int rotation_spreading_radius,
+                             int num_orientations,
+                             int num_parts,
+                             pooling_shape):
+
+    offset = subsample_offset_shape((part_index_map.shape[1], part_index_map.shape[2]), pooling_shape)
+    cdef:
+        int sample_size = part_index_map.shape[0]
+        int part_index_dim0 = part_index_map.shape[1]
+        int part_index_dim1 = part_index_map.shape[2]
+        int pooling0 = pooling_shape[0]
+        int pooling1 = pooling_shape[1]
+        int half_pooling0 = pooling0 // 2
+        int half_pooling1 = pooling1 // 2
+        int offset0 = offset[0]
+        int offset1 = offset[1]
+        np.float64_t rad = angle * 3.14159265359 / 180.0
+        double grad_step = 360.0 / <double>num_orientations
+        int steps = <int>(angle / grad_step + 0.0001)
+
+
+        int feat_dim0 = part_index_dim0//pooling0
+        int feat_dim1 = part_index_dim1//pooling1
+
+        np.ndarray[np.uint8_t,ndim=4] feature_map = np.zeros((sample_size,
+                                                              feat_dim0,
+                                                              feat_dim1,
+                                                              num_parts),
+                                                              dtype=np.uint8)
+        np.int64_t[:,:,:] part_index_mv = part_index_map 
+        np.uint8_t[:,:,:,:] feat_mv = feature_map 
+
+
+        int p, i, j, n,i0, j0, ib, jb, t
+        double ir, jr, x, y 
+
+
+
+        int tots = 1 + 2 * rotation_spreading_radius
+        np.ndarray[np.int64_t,ndim=2] rotated_index = np.tile(np.arange(num_parts, dtype=np.int64), (tots, 1))
+        np.int64_t[:,:] rotated_index_mv = rotated_index
+    
+    for i in range(num_parts // num_orientations):
+        rotated_index[0,i*num_orientations:(i+1)*num_orientations] = np.roll(rotated_index[0,i*num_orientations:(i+1)*num_orientations], -steps)
+        for sp in range(rotation_spreading_radius):
+            rotated_index[1+2*sp,i*num_orientations:(i+1)*num_orientations] = np.roll(rotated_index[1+2*sp,i*num_orientations:(i+1)*num_orientations], -steps+(1+sp))
+            rotated_index[2+2*sp,i*num_orientations:(i+1)*num_orientations] = np.roll(rotated_index[2+2*sp,i*num_orientations:(i+1)*num_orientations], -steps-(1+sp))
+
+    with nogil:
+        for i0 in range(part_index_dim0):
+            for j0 in range(part_index_dim1):
+                # Rotate this index point
+
+
+                y = 0.5 * <double>(part_index_dim0 - 1) - <double>i0 
+                x = <double>j0 - 0.5 * (<double>(part_index_dim1 - 1))
+                cos_angle = cos(rad)
+                sin_angle = sin(rad)
+
+                #location = np.empty_like(location, dtype=np.float64)
+                ir = 0.5 * (part_index_dim0 - 1) - (sin_angle * x + cos_angle * y)
+                jr = (cos_angle * x - sin_angle * y) + 0.5 * (part_index_dim1 - 1)
+
+                # Which spatial bin does this go to?
+                ib = <int>floor((ir - offset0 + half_pooling0) / pooling0 + 0.0001)
+                jb = <int>floor((jr - offset1 + half_pooling1) / pooling1 + 0.0001)
+
+                if 0 <= ib < feat_dim0 and 0 <= jb < feat_dim1:
+                    for n in range(sample_size):
+                        p = part_index_mv[n,i0,j0]
+                        if p != -1:
+                            for t in range(tots):
+                                feat_mv[n,ib,jb,rotated_index_mv[t,p]] = 1
       
     return feature_map 
 

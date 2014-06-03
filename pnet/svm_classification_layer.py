@@ -10,6 +10,7 @@ from sklearn import cross_validation
 class SVMClassificationLayer(SupervisedLayer):
     def __init__(self, C=1.0, settings={}):
         self._penalty = C
+        self._settings = settings
         self._svm = None
 
     @property
@@ -43,7 +44,7 @@ class SVMClassificationLayer(SupervisedLayer):
 
         else:
             # Cross-validate the penalty
-            clf = LinearSVC(C=self._penalty)
+            clf = LinearSVC(C=self._penalty, random_state=self._settings.get('seed', 0))
             clf.fit(Xflat, Y)
 
         self._svm = clf 
@@ -51,12 +52,14 @@ class SVMClassificationLayer(SupervisedLayer):
     def save_to_dict(self):
         d = {}
         d['svm'] = self._svm
+        d['settings'] = self._setings
         d['penalty'] = self._penalty
         return d
 
     @classmethod
     def load_from_dict(cls, d):
         obj = cls(C=d['penalty'])
+        obj._settings = d['settings']
         obj._svm = d['svm']
         return obj
 

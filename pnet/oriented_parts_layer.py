@@ -77,9 +77,7 @@ class OrientedPartsLayer(Layer):
 
         # Rotation spreading?
         rotspread = self._settings.get('rotation_spreading_radius', 0)
-        if rotspread == 0:
-            between_feature_spreading = None
-        else:
+        if rotspread > 0:
             between_feature_spreading = np.zeros((self.num_parts, rotspread*2 + 1), dtype=np.int64)
             ORI = self._num_orientations
 
@@ -109,7 +107,6 @@ class OrientedPartsLayer(Layer):
     def train_from_samples(self, raw_patches, raw_originals):
         #from pnet.latent_bernoulli_mm import LatentBernoulliMM
         #from pnet.bernoullimm import BernoulliMM
-        from pnet.permutation_mm import PermutationMM
         min_prob = self._settings.get('min_prob', 0.01)
 
         ORI = self._num_orientations
@@ -123,67 +120,105 @@ class OrientedPartsLayer(Layer):
         PP = np.arange(POL)
         II = [list(itr.product(PPi, RRi)) for PPi in cycles(PP) for RRi in cycles(RR)]
         lookup = dict(zip(itr.product(PP, RR), itr.count()))
-        permutations = np.asarray([[lookup[ii] for ii in rows] for rows in II])
-        print(permutations)
+        #print(permutations)
         n_init = self._settings.get('n_init', 1)
         n_iter = self._settings.get('n_iter', 10)
         seed = self._settings.get('em_seed', 0)
 
-        mm = PermutationMM(n_components=self._num_true_parts, permutations=permutations, n_iter=n_iter, n_init=n_init, random_state=seed, min_probability=min_prob)
-        #import IPython
-        #IPython.embed()
 
-        mm.fit(raw_patches.reshape(raw_patches.shape[:2] + (-1,)))
+        num_angle = ORI
+        d = np.prod(raw_patches.shape[2:])
+        permutation = np.empty((num_angle, num_angle * d), dtype=np.int_)
+        for a in range(num_angle):
+            if a == 0:
+                permutation[a] = np.arange(num_angle * d)
+            else:
+                permutation[a] = np.roll(permutation[a-1], d)
+    
+        from pnet.bernoulli import em      
 
-        comps = mm.mixture_components()
+        X = raw_patches.reshape((raw_patches.shape[0], -1))
 
-        self._parts = mm.means_.reshape((mm.n_components * P,) + raw_patches.shape[2:])
+        if 1:
+            ret = em(X, self._num_true_parts, n_iter,
+                     permutation=permutation, numpy_rng=seed,
+                     verbose=True)
 
-        self._train_info['counts'] = np.bincount(comps[:,0], minlength=mm.n_components)
+            comps = ret[3]
+            self._parts = ret[1].reshape((self._num_true_parts * P,) + raw_patches.shape[2:])
 
-        mcomps = comps.copy()
-        #mcomps[:,1] = self._num_orientations - mcomps[:,1] - 1
+        else:
+            permutations = np.asarray([[lookup[ii] for ii in rows] for rows in II])
 
+            from pnet.permutation_mm import PermutationMM
+            mm = PermutationMM(n_components=self._num_true_parts, permutations=permutations, n_iter=n_iter, n_init=n_init, random_state=seed, min_probability=min_prob)
+
+            mm.fit(raw_patches.reshape(raw_patches.shape[:2] + (-1,)))
+
+
+            comps = mm.mixture_components()
+
+            self._parts = mm.means_.reshape((mm.n_components * P,) + raw_patches.shape[2:])
+
+        print('parts shape', self._parts.shape)
+        from pnet.vzlog import default as vz
+
+        from pylab import cm
+        grid2 = pnet.plot.ImageGrid(self._num_true_parts, 8, raw_originals.shape[2:])
+        for n in xrange(self._num_true_parts):
+            for e in xrange(8):
+                grid2.set_image(self._parts[n * self._num_true_parts,...,e], n, e, vmin=0, vmax=1, cmap=cm.RdBu_r)
+        grid2.save(vz.generate_filename(), scale=5)
+
+        self._train_info['counts'] = np.bincount(comps[:,0], minlength=self._num_true_parts)
 
         print(self._train_info['counts'])
 
         #raw_originals[tuple(mcomps[mcomps[:,0]==k].T)].mean(0) for k in xrange(mm.n_components)             
 
-        self._visparts = np.asarray([
-            raw_originals[comps[:,0]==k,comps[comps[:,0]==k][:,1]].mean(0) for k in xrange(mm.n_components)             
-        ])
+        if 1:
+            self._visparts = np.asarray([
+                raw_originals[comps[:,0]==k,comps[comps[:,0]==k][:,1]].mean(0) for k in xrange(self._num_true_parts)             
+            ])
 
-        XX = [
-            raw_originals[comps[:,0]==k,comps[comps[:,0]==k][:,1]] for k in xrange(mm.n_components)             
-        ]
+            XX = [
+                raw_originals[comps[:,0]==k,comps[comps[:,0]==k][:,1]] for k in xrange(self._num_true_parts)             
+            ]
 
-        #import pdb; pdb.set_trace()
+            #import IPython
+            #IPython.embed()
 
-        N = 100
+            #import pdb; pdb.set_trace()
 
-        from pnet.vzlog import default as vz
-        from pylab import cm
+            N = 100
 
-        m = self._train_info['counts'].argmax()
-        mcomps = comps[comps[:,0] == m]
 
-        raw_originals_m = raw_originals[comps[:,0] == m]
+            m = self._train_info['counts'].argmax()
+            mcomps = comps[comps[:,0] == m]
 
-        if 0:
-            grid0 = pnet.plot.ImageGrid(N, self._num_orientations, raw_originals.shape[2:], border_color=(1, 1, 1))
-            for i in xrange(min(N, raw_originals_m.shape[0])): 
-                for j in xrange(self._num_orientations):
-                    grid0.set_image(raw_originals_m[i,(mcomps[i,1]+j)%self._num_orientations], i, j, vmin=0, vmax=1, cmap=cm.gray)
+            raw_originals_m = raw_originals[comps[:,0] == m]
+
+            if 1:
+                grid0 = pnet.plot.ImageGrid(N, self._num_orientations, raw_originals.shape[2:], border_color=(1, 1, 1))
+                for i in xrange(min(N, raw_originals_m.shape[0])): 
+                    for j in xrange(self._num_orientations):
+                        grid0.set_image(raw_originals_m[i,(mcomps[i,1]+j)%self._num_orientations], i, j, vmin=0, vmax=1, cmap=cm.gray)
+
+                grid0.save(vz.generate_filename(), scale=3)
+
+            grid0 = pnet.plot.ImageGrid(self._num_true_parts, N, raw_originals.shape[2:], border_color=(1, 1, 1))
+            for m in xrange(self._num_true_parts):
+                for i in xrange(min(N, XX[m].shape[0])):
+                    grid0.set_image(XX[m][i], m, i, vmin=0, vmax=1, cmap=cm.gray)
+                    #grid0.set_image(XX[i][j], i, j, vmin=0, vmax=1, cmap=cm.gray)
 
             grid0.save(vz.generate_filename(), scale=3)
 
-        grid0 = pnet.plot.ImageGrid(mm.n_components, N, raw_originals.shape[2:], border_color=(1, 1, 1))
-        for m in xrange(mm.n_components):
-            for i in xrange(min(N, XX[m].shape[0])):
-                grid0.set_image(XX[m][i], m, i, vmin=0, vmax=1, cmap=cm.gray)
-                #grid0.set_image(XX[i][j], i, j, vmin=0, vmax=1, cmap=cm.gray)
+            grid1 = pnet.plot.ImageGrid(1, self._num_true_parts, raw_originals.shape[2:], border_color=(1, 1, 1))
+            for m in xrange(self._num_true_parts):
+                grid1.set_image(self._visparts[m], 0, m, vmin=0, vmax=1, cmap=cm.gray)
 
-        grid0.save(vz.generate_filename(), scale=3)
+            grid1.save(vz.generate_filename(), scale=5)
 
         # Reject some parts
 
@@ -393,7 +428,7 @@ class OrientedPartsLayer(Layer):
         d['settings'] = self._settings
 
         d['parts'] = self._parts
-        #d['weights'] = self._weights
+        d['weights'] = self._weights
         return d
 
     @classmethod
@@ -405,7 +440,7 @@ class OrientedPartsLayer(Layer):
         # }
         obj = cls(num_true_parts, d['num_orientations'], d['part_shape'], settings=d['settings'])
         obj._parts = d['parts']
-        #obj._weights = d['weights']
+        obj._weights = d.get('weights')
         return obj
 
     def __repr__(self):
