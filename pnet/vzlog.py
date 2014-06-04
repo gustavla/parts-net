@@ -55,13 +55,13 @@ class VzLog(object):
 
         self._counter = 0
 
-        # Make finalize unnecessary to call manually
+        # Make flush unnecessary to call manually
         import atexit
-        atexit.register(self.finalize)
+        atexit.register(self.flush)
 
     #def __del__(self):
         #if self._open:
-            #self.finalize()
+            #self.flush()
         #pass
 
     def register_filename(self, fn):
@@ -123,16 +123,16 @@ class VzLog(object):
             #print(_FOOTER, file=f)
             #self._has_footer = True
 
-    def finalize(self):
+    def flush(self):
         self._output_html(_FOOTER) 
         self.register_filename(os.path.join(self._get_root(), 'index.html'))
         self.update_rights()
         self.set_rights(self._get_root())
 
         #if self._filename_stack:
-            #self.log("WARNING: Could not finalize these files: {}".format(self._filename_stack))
+            #self.log("WARNING: Could not flush these files: {}".format(self._filename_stack))
         if self._filename_stack:
-            print("WARNING: Could not finalize these files: {}".format(self._filename_stack))
+            print("WARNING: Could not flush these files: {}".format(self._filename_stack))
 
         self._open = False
 

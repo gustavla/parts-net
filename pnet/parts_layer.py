@@ -123,20 +123,19 @@ class PartsLayer(Layer):
 
 
         Hall = (means * np.log(means) + (1 - means) * np.log(1 - means))
-        H = -Hall.mean(-1)
+        H = -Hall.mean(-1).mean(-1).mean(-1)
 
         self._weights = weights 
 
         # Calculate entropy of parts
 
         # Sort by entropy
-        if 0:
-            II = np.argsort(H)
+        II = np.argsort(H)
 
-            self._parts = self._parts[II]
+        self._parts = self._parts[II]
 
-            self._num_parts = II.shape[0]
-            self._train_info['entropy'] = H[II]
+        self._num_parts = II.shape[0]
+        self._train_info['entropy'] = H[II]
 
 
         # Reject some parts

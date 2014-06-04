@@ -72,8 +72,6 @@ class RotationMixtureClassificationLayer(SupervisedLayer):
             print('B')
             XB = XB.reshape(XB.shape[:-1] + (num_true_parts, num_orientations))
 
-            from pnet.more_danny import rotate_patch_map
-
             blocks = [] 
 
             print('C')
