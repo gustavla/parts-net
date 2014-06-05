@@ -26,12 +26,17 @@ if pnet.parallel.main(__name__):
     parser.add_argument('model',metavar='<model file>',type=argparse.FileType('rb'), help='Filename of model file')
     parser.add_argument('data',metavar='<mnist data file>',type=argparse.FileType('rb'),help='Filename of data file')
     parser.add_argument('label',metavar='<mnist data file>',type=argparse.FileType('rb'),help='Filename of data file')
+    parser.add_argument('test_data',metavar='<mnist test data file>',type=argparse.FileType('rb'),help='Filename of data file')
+    parser.add_argument('test_label',metavar='<mnist test data file>',type=argparse.FileType('rb'),help='Filename of data file')
     parser.add_argument('classifier',metavar='<classifier>', type=str, choices=('mixture', 'svm-mixture', 'rot-mixture'), help='num Of Class Model')
     parser.add_argument('numOfClassModel',metavar='<numOfClassModel>', type=str, help='num Of Class Model')
+    parser.add_argument('seed', type=int, default=1)
+    parser.add_argument('saveFile', metavar='<part Model file>', type=argparse.FileType('wb'),help='Filename of savable model file')
 
     args = parser.parse_args()
 
     numOfClassModel = args.numOfClassModel
+    saveFile = args.saveFile
 
     if numOfClassModel == 'many':
         num_class_models = [1, 2, 5, 10, 20]
@@ -45,6 +50,9 @@ if pnet.parallel.main(__name__):
 
     data = np.load(args.data)
     label = np.load(args.label)
+    test_data0 = np.load(args.test_data)
+    test_label0 = np.load(args.test_label)
+    seed = args.seed
 
     net = pnet.PartsNet.load(args.model)
 
@@ -55,10 +63,8 @@ if pnet.parallel.main(__name__):
     all_num_parts = []
     ims10k = data[:10000]
     label10k = np.array(label[:10000]).astype(np.int_)
-    np.save('a.npy',label10k)
-    ims2k = data[10000:12000]
-    label2k = np.array(label[10000:12000]).astype(np.int_)
-    np.save('b.npy',label2k) 
+    ims2k = test_data0
+    label2k = test_label0.astype(np.int_)
     digits = range(10)
     if 0:
         sup_ims = []
@@ -93,17 +99,21 @@ if pnet.parallel.main(__name__):
                 if classifier == 'mixture':
                     layers = [
                         pnet.PoolingLayer(shape=(4, 4), strides=(4, 4)),
-                        pnet.MixtureClassificationLayer(n_components=n_classes, min_prob=1e-5)
+                        pnet.MixtureClassificationLayer(n_components=n_classes, min_prob=1e-5, settings=dict(seed=seed))
                     ]
                 elif classifier == 'svm':
                     layers = [
                         pnet.PoolingLayer(shape=(4, 4), strides=(4, 4)),
-                        pnet.SVMClassificationLayer(C=None),
+                        pnet.SVMClassificationLayer(C=None, settings=dict(seed=seed)),
                     ]
                 elif classifier == 'rot-mixture':
                     n_orientations = 16
                     layers = [
-                        pnet.RotationMixtureClassificationLayer(n_components=n_classes, n_orientations=n_orientations, min_prob=1e-5, pooling_settings=dict(
+                        pnet.RotationMixtureClassificationLayer(n_components=n_classes, 
+                                                                n_orientations=n_orientations, 
+                                                                min_prob=1e-5, 
+                                                                settings=dict(seed=seed), 
+                                                                pooling_settings=dict(
                                 shape=(4, 4),
                                 strides=(4, 4),
                                 rotation_spreading_radius=rotspread,
@@ -119,7 +129,7 @@ if pnet.parallel.main(__name__):
                 print('Done.')
                 end1 = time.time()
 
-                net.save('tmp.npy')
+                clnet.save(saveFile)        
 
                 #print("Now testing...")
                 ### Test ######################################################################
@@ -130,8 +140,8 @@ if pnet.parallel.main(__name__):
                 test_labels = label2k
 
 
-                ims_batches = np.array_split(test_ims, 100)
-                labels_batches = np.array_split(test_labels, 100)
+                ims_batches = np.array_split(test_ims, 2500)
+                labels_batches = np.array_split(test_labels, 2500)
 
                 def format_error_rate(pr):
                     return "{:.2f}%".format(100*(1-pr))
@@ -147,7 +157,7 @@ if pnet.parallel.main(__name__):
                 error_rate = 1.0 - pr 
 
                 error_rates.append(error_rate)
-                print('Classifier:', classifier, 'Components:', n_classes, 'Rotational spreading:', rotspread)
+                print('Classifier:', classifier, 'Components:', n_classes, 'Rotational spreading:', rotspread, 'Seed:', seed)
                 print('error rate', error_rate * 100)
 
 

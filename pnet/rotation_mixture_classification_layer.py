@@ -53,7 +53,7 @@ class RotationMixtureClassificationLayer(SupervisedLayer):
 
         self._extra['training_comp'] = []
 
-        K = Y.max() + 1
+        K = int(Y.max()) + 1
 
         mm_models = []
 
@@ -125,7 +125,7 @@ class RotationMixtureClassificationLayer(SupervisedLayer):
 
             n_init = self._settings.get('n_init', 1)
             n_iter = self._settings.get('n_iter', 10)
-            seed = self._settings.get('em_seed', 0)
+            seed = self._settings.get('seed', 0)
 
             ORI = self._n_orientations
             POL = 1
@@ -168,7 +168,7 @@ class RotationMixtureClassificationLayer(SupervisedLayer):
 
 
                 XX = blocks.reshape((blocks.shape[0], -1))
-                print('F')
+                print('F Digit:', d)
                 ret = em(XX, self._n_components, n_iter,
                          permutation=permutation, numpy_rng=seed,
                          verbose=True)
