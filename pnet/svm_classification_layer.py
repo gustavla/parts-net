@@ -52,7 +52,7 @@ class SVMClassificationLayer(SupervisedLayer):
     def save_to_dict(self):
         d = {}
         d['svm'] = self._svm
-        d['settings'] = self._setings
+        d['settings'] = self._settings
         d['penalty'] = self._penalty
         return d
 

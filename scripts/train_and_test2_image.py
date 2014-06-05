@@ -247,7 +247,7 @@ if pnet.parallel.main(__name__):
         # Vz
         #net.infoplot(vz)
 
-        #vz.finalize()
+        #vz.flush()
         net.save('tmp{}.npy'.format(training_seed))
 
     print(r"{ppl} & {depth} & {num_parts} & {unsup_time:.1f} & {test_time:.1f} & ${rate:.2f} \pm {std:.2f}$ \\".format(

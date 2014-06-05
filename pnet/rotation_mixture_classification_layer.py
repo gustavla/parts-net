@@ -42,7 +42,10 @@ class RotationMixtureClassificationLayer(SupervisedLayer):
 
         llh = XX * np.log(theta) + (1 - XX) * np.log(1 - theta)
         bb = np.apply_over_axes(np.sum, llh, [-3, -2, -1])[...,0,0,0]
-        Yhat = np.argmax(bb.max(-1), axis=1)
+        if self._settings.get('return_latent_rotation'):
+            Yhat = np.vstack([bb.max(-1).argmax(1), bb.max(1).argmax(-1)]).T
+        else:
+            Yhat = np.argmax(bb.max(-1), axis=1)
         return Yhat 
     
     def train(self, X_n, Y):
@@ -56,6 +59,7 @@ class RotationMixtureClassificationLayer(SupervisedLayer):
         K = int(Y.max()) + 1
 
         mm_models = []
+        mm_viz = []
 
         for k in xrange(K):
             Xk = X[Y == k]
@@ -174,9 +178,39 @@ class RotationMixtureClassificationLayer(SupervisedLayer):
                          verbose=True)
                 print('G')
 
+                comps = ret[3]
+
                 self._extra['training_comp'].append(ret[3])
 
                 mu = ret[1].reshape((self._n_components * self._n_orientations,) + shape)
+
+            if 0: # Build visualizations of all rotations
+
+                ims10k = self._data
+                label10k = Y
+
+                ims10k_d = ims10k[label10k == d]
+
+                rot_ims10k = np.asarray([[rotate(im, -rot, resize=False) for rot in np.arange(n_orientations) * 360 / n_orientations] for im in ims10k_d])
+
+                vispart_blocks = []
+
+                for phase in xrange(n_orientations):
+                    visparts = np.asarray([
+                        rot_ims10k[comps[:,0]==k,comps[comps[:,0]==k][:,1]].mean(0) for k in xrange(n_comp)
+                    ])
+
+                    M = 50
+
+                    grid0 = pnet.plot.ImageGrid(n_comp, min(M, np.max(map(len, XX))), ims10k.shape[1:])
+                    for k in xrange(n_comp):
+                        for i in xrange(min(M, len(XX[k]))):
+                            grid0.set_image(XX[k][i], k, i, vmin=0, vmax=1, cmap=cm.gray)
+                    grid0.save(vz.generate_filename(), scale=3)
+
+                    for k in xrange(n_comp):
+                        grid.set_image(visparts[k], d, k, vmin=0, vmax=1, cmap=cm.gray)
+
 
 
             

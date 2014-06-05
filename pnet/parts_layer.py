@@ -37,6 +37,11 @@ class PartsLayer(Layer):
     def num_parts(self):
         return self._num_parts
 
+    @property
+    def part_shape(self):
+        return self._part_shape
+
+
     def extract(self, X):
         assert self._parts is not None, "Must be trained before calling extract"
 

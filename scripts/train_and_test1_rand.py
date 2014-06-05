@@ -56,7 +56,7 @@ if pnet.parallel.main(__name__):
        
             pnet.PartsLayer(1000, (5, 5), settings=dict(outer_frame=1, 
                                                       em_seed=training_seed,
-                                                      threshold=2, 
+                                                      threshold=2,
                                                       samples_per_image=40, 
                                                       max_samples=200000,
                                                       train_limit=10000,
@@ -245,7 +245,6 @@ if pnet.parallel.main(__name__):
         # Vz
         #net.infoplot(vz)
 
-        #vz.finalize()
         net.save('tmp{}.npy'.format(training_seed))
 
     print(r"{ppl} & {depth} & {num_parts} & {unsup_time:.1f} & {test_time:.1f} & ${rate:.2f} \pm {std:.2f}$ \\".format(

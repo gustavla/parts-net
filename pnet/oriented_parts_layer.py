@@ -155,6 +155,10 @@ class OrientedPartsLayer(Layer):
     def num_parts(self):
         return self._num_parts
 
+    @property
+    def part_shape(self):
+        return self._part_shape
+
     def extract(self, im):
         b = int(im.shape[0] // 100)
         sett = (self._settings, self.num_parts, self._num_orientations, self._part_shape, self._parts)
@@ -268,11 +272,11 @@ class OrientedPartsLayer(Layer):
 
         print(self._train_info['counts'])
 
+        self._visparts = np.asarray([
+            raw_originals[comps[:,0]==k,comps[comps[:,0]==k][:,1]].mean(0) for k in xrange(self._num_true_parts)             
+        ])
 
         if 0:
-            self._visparts = np.asarray([
-                raw_originals[comps[:,0]==k,comps[comps[:,0]==k][:,1]].mean(0) for k in xrange(self._num_true_parts)             
-            ])
 
             XX = [
                 raw_originals[comps[:,0]==k,comps[comps[:,0]==k][:,1]] for k in xrange(self._num_true_parts)             
@@ -525,6 +529,7 @@ class OrientedPartsLayer(Layer):
         d['settings'] = self._settings
 
         d['parts'] = self._parts
+        d['visparts'] = self._visparts
         d['weights'] = self._weights
         return d
 
@@ -537,6 +542,7 @@ class OrientedPartsLayer(Layer):
         # }
         obj = cls(num_true_parts, d['num_orientations'], d['part_shape'], settings=d['settings'])
         obj._parts = d['parts']
+        obj._visparts = d.get('visparts')
         obj._weights = d.get('weights')
         return obj
 

@@ -31,8 +31,12 @@ if pnet.parallel.main(__name__):
 
     numOfClassModel = args.numOfClassModel
     digits = range(10)
+    
+    N = args.samples
 
-    if numOfClassModel == 'many':
+    if numOfClassModel == 'adaptive':
+        num_class_models = [max(20, np.ceil(N / 100))]
+    elif numOfClassModel == 'many':
         num_class_models = [1, 2, 5, 10, 15, 20]
     elif numOfClassModel == 'afew':
         num_class_models = [1, 2, 5, 10]
@@ -47,27 +51,16 @@ if pnet.parallel.main(__name__):
     #data = np.load(args.data)
     #label = np.load(args.label)
     
-    N = args.samples
+    if N >= 6000:
+        N = None
 
     net = pnet.PartsNet.load(args.model)
 
     #images, labels = ag.io.load_mnist('training') 
 
-    image_slices = []
-    label_slices = []
-    for d in digits:
-        images = ag.io.load_mnist('training', digits=[d], selection=slice(N), return_labels=False) 
-
-        image_slices.append(images)
-        label_slices.append(np.ones(len(images), dtype=np.int64) * d)
-
-    ims10k = np.concatenate(image_slices)
-    label10k = np.concatenate(label_slices)
-
     unsup_training_times = []
     sup_training_times = []
     testing_times = []
-    error_rates = []
     all_num_parts = []
     #ims10k = data[:10000]
     #label10k = np.array(label[:10000]) 
@@ -79,18 +72,18 @@ if pnet.parallel.main(__name__):
 
     #np.save('b.npy',label2k) 
     print(ims2k.shape)
-    sup_ims = []
-    sup_labels = []
-    # Load supervised training data
-    for d in digits:
-        ims0 = ims10k[label10k == d]
-        sup_ims.append(ims0)
-        sup_labels.append(d * np.ones(len(ims0), dtype=np.int64))
+    if 0:
+        sup_ims = []
+        sup_labels = []
+        # Load supervised training data
+        for d in digits:
+            ims0 = ims10k[label10k == d]
+            sup_ims.append(ims0)
+            sup_labels.append(d * np.ones(len(ims0), dtype=np.int64))
 
-    sup_ims = np.concatenate(sup_ims, axis=0)
-    sup_labels = np.concatenate(sup_labels, axis=0)
+        sup_ims = np.concatenate(sup_ims, axis=0)
+        sup_labels = np.concatenate(sup_labels, axis=0)
     print("=================")
-    print(sup_ims.shape)
     #print(sup_labels)
 
     if net.layers[0].name == 'oriented-parts-layer':
@@ -98,75 +91,100 @@ if pnet.parallel.main(__name__):
     else:
         rotspreads = [0]
 
+    all_images, all_labels = ag.io.load_mnist('training') 
+
     for classifier in classifier_names:
         num_class_models0 = num_class_models
         if classifier == 'svm':
             num_class_models0 = [1]
 
+        # per class: 30 100 200 500 1000 2000 full
+
+        # 1 1 2 5 10 20 20
+
         for n_classes in num_class_models0:
             for rotspread in rotspreads:
-                if net.layers[0].name == 'oriented-parts-layer':
-                    net.layers[0]._settings['rotation_spreading_radius'] = rotspread
-
+                rs = np.random.RandomState(0)
+                error_rates = []
                 print('Classifier:', classifier, 'Components:', n_classes, 'Rotational spreading:', rotspread)
-                if classifier == 'mixture':
-                    layers = [
-                        pnet.PoolingLayer(shape=(4, 4), strides=(4, 4)),
-                        pnet.MixtureClassificationLayer(n_components=n_classes, min_prob=1e-5)
-                    ]
-                elif classifier == 'svm':
-                    layers = [
-                        pnet.PoolingLayer(shape=(4, 4), strides=(4, 4)),
-                        pnet.SVMClassificationLayer(C=None),
-                    ]
-                elif classifier == 'rot-mixture':
-                    n_orientations = 16
-                    layers = [
-                        pnet.RotationMixtureClassificationLayer(n_components=n_classes, n_orientations=n_orientations, min_prob=1e-5, pooling_settings=dict(
-                                shape=(4, 4),
-                                strides=(4, 4),
-                                rotation_spreading_radius=rotspread,
-                            ))
-                    ]
+                for trial in xrange(2):
+                    II = np.arange(len(all_images))
+                    rs.shuffle(II)
 
-                clnet = pnet.PartsNet([net] + layers)
-                        
-                start1 = time.time()
-                print('Training supervised...')
-                print(sup_ims.shape)
-                clnet.train(sup_ims, sup_labels)
-                print('Done.')
-                end1 = time.time()
+                    perm_images = all_images[II]
+                    perm_labels = all_labels[II]
 
-                #print("Now testing...")
-                ### Test ######################################################################
+                    image_slices = []
+                    label_slices = []
+                    for d in digits:
+                        X = perm_images[perm_labels == d][:N]
+                        image_slices.append(X)
+                        label_slices.append(np.ones(len(X), dtype=np.int64) * d)
 
-                corrects = 0
-                total = 0
-                test_ims = ims2k
-                test_labels = label2k
+                    sup_ims = np.concatenate(image_slices)
+                    sup_labels = np.concatenate(label_slices)
 
 
-                ims_batches = np.array_split(test_ims, 200)
-                labels_batches = np.array_split(test_labels, 200)
+                    if net.layers[0].name == 'oriented-parts-layer':
+                        net.layers[0]._settings['rotation_spreading_radius'] = rotspread
 
-                def format_error_rate(pr):
-                    return "{:.2f}%".format(100*(1-pr))
+                    if classifier == 'mixture':
+                        layers = [
+                            pnet.PoolingLayer(shape=(4, 4), strides=(4, 4)),
+                            pnet.MixtureClassificationLayer(n_components=n_classes, min_prob=1e-5, settings=dict(seed=trial))
+                        ]
+                    elif classifier == 'svm':
+                        layers = [
+                            pnet.PoolingLayer(shape=(4, 4), strides=(4, 4)),
+                            pnet.SVMClassificationLayer(C=None, settings=dict(seed=trial)),
+                        ]
+                    elif classifier == 'rot-mixture':
+                        n_orientations = 16
+                        layers = [
+                            pnet.RotationMixtureClassificationLayer(n_components=n_classes, n_orientations=n_orientations, min_prob=1e-5, pooling_settings=dict(
+                                    shape=(4, 4),
+                                    strides=(4, 4),
+                                    rotation_spreading_radius=rotspread,
+                                ))
+                        ]
 
-                #with gv.Timer('Testing'):
-                start2 = time.time()
-                args = (tup+(clnet,) for tup in itr.izip(ims_batches, labels_batches))
-                for i, res in enumerate(pnet.parallel.starmap(test, args)):
-                    corrects += res.sum()
-                    total += res.size
-                    pr = corrects / total
-                end2 = time.time()
+                    clnet = pnet.PartsNet([net] + layers)
+                            
+                    start1 = time.time()
+                    clnet.train(sup_ims, sup_labels)
+                    end1 = time.time()
 
-                error_rate = 1.0 - pr 
+                    #print("Now testing...")
+                    ### Test ######################################################################
+
+                    corrects = 0
+                    total = 0
+                    test_ims = ims2k
+                    test_labels = label2k
 
 
-                error_rates.append(error_rate)
-                print('error rate', error_rate * 100, 'num parts')
+                    ims_batches = np.array_split(test_ims, 200)
+                    labels_batches = np.array_split(test_labels, 200)
+
+                    def format_error_rate(pr):
+                        return "{:.2f}%".format(100*(1-pr))
+
+                    #with gv.Timer('Testing'):
+                    start2 = time.time()
+                    args = (tup+(clnet,) for tup in itr.izip(ims_batches, labels_batches))
+                    for i, res in enumerate(pnet.parallel.starmap(test, args)):
+                        corrects += res.sum()
+                        total += res.size
+                        pr = corrects / total
+                    end2 = time.time()
+
+                    error_rate = 1.0 - pr 
 
 
+                    error_rates.append(error_rate)
+                    print(trial, 'error rate', error_rate * 100)
+            
+                print('Classifier:', classifier, 'Components:', n_classes, 'Rotational spreading:', rotspread)
+                print("error rates", error_rates)
+                print("mean error rate", 100 * np.mean(error_rates))
 

@@ -127,4 +127,4 @@ net.save(args.model)
 
 if args.log:
     net.infoplot(vz)
-    vz.finalize()
+    vz.flush()

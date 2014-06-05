@@ -4,11 +4,11 @@ import pnet.img
 #from scipy.ndimage.interpolation import zoom
 
 class ImageGrid(object):
-    def __init__(self, rows, cols, size, border_color=np.array([0.5, 0.5, 0.5])):
+    def __init__(self, rows, cols, size, border_color=np.array([0.5, 0.5, 0.5]), border_width=1):
         self._rows = rows
         self._cols = cols
         self._size = size
-        self._border = 1
+        self._border = border_width 
         self._border_color = np.array(border_color)
 
         self._fullsize = (self._border + (size[0] + self._border) * self._rows,
@@ -51,9 +51,19 @@ class ImageGrid(object):
         self._data[anchor[0] : anchor[0] + rgb.shape[0],
                    anchor[1] : anchor[1] + rgb.shape[1]] = rgb
 
-    def save(self, path, scale=1):
-        data = self._data
-        if scale != 1:
+    def scaled_image(self, scale):
+        if scale == 1:
+            return self._data
+        else:
             from skimage.transform import resize
             data = resize(self._data, tuple([self._data.shape[i] * scale for i in xrange(2)]), order=0)
+            # Make sure the borders stay the same color
+            data[:scale*self._border] = self._border_color
+            data[-scale*self._border:] = self._border_color
+            data[:,:scale*self._border] = self._border_color
+            data[:,-scale*self._border:] = self._border_color
+            return data
+
+    def save(self, path, scale=1):
+        data = self.scaled_image(scale) 
         pnet.img.save_image(path, data)

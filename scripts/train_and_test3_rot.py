@@ -57,8 +57,6 @@ if pnet.parallel.main(__name__):
         for i in xrange(10):
             gv.img.save_image(vz.generate_filename(), mnist_data['training_image'][i])
 
-        vz.finalize() 
-
         import sys; sys.exit(0)
 
     for training_seed in xrange(1):
@@ -74,6 +72,8 @@ if pnet.parallel.main(__name__):
         print('Extracting subsets...')
         ims10k = mnist_data['training_image'][:10000]
         label10k = mnist_data['training_label'][:10000]
+        #ims10k = mnist_data['training_image'][:100]
+        #label10k = mnist_data['training_label'][:100]
 
         #ims10k = ims10k[label10k <= 1]
         #label10k = label10k[label10k <= 1]
@@ -113,7 +113,7 @@ if pnet.parallel.main(__name__):
 
                 print('Classifier:', classifier, 'Rotational spreading:', rotspread)
                 n_orientations = 16
-                n_comp = 1
+                n_comp = 5
                 if classifier == 'rot-mixture':
                     cl = pnet.RotationMixtureClassificationLayer(n_components=n_comp, n_orientations=n_orientations, min_prob=1e-5, pooling_settings=dict(
                             shape=(4, 4),
@@ -173,8 +173,6 @@ if pnet.parallel.main(__name__):
                             grid.set_image(visparts[k], d, k, vmin=0, vmax=1, cmap=cm.gray)
 
                     grid.save(vz.generate_filename(), scale=5)
-
-                    vz.finalize()
                 except:
                     print("RAISE")
                     pass

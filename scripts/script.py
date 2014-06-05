@@ -28,6 +28,7 @@ if pnet.parallel.main(__name__):
     parser.add_argument('label',metavar='<mnist data file>',type=argparse.FileType('rb'),help='Filename of data file')
     parser.add_argument('classifier',metavar='<classifier>', type=str, choices=('mixture', 'svm-mixture', 'rot-mixture'), help='num Of Class Model')
     parser.add_argument('numOfClassModel',metavar='<numOfClassModel>', type=str, help='num Of Class Model')
+    parser.add_argument('--output', '-o', type=str)
 
     args = parser.parse_args()
 
@@ -48,6 +49,11 @@ if pnet.parallel.main(__name__):
 
     net = pnet.PartsNet.load(args.model)
 
+    if net.layers[0].name == 'oriented-parts-layer':
+        part_shape = net.layers[0].part_shape
+    else:
+        part_shape = net.layers[1].part_shape
+
     unsup_training_times = []
     sup_training_times = []
     testing_times = []
@@ -55,10 +61,9 @@ if pnet.parallel.main(__name__):
     all_num_parts = []
     ims10k = data[:10000]
     label10k = np.array(label[:10000]).astype(np.int_)
-    np.save('a.npy',label10k)
+
     ims2k = data[10000:12000]
     label2k = np.array(label[10000:12000]).astype(np.int_)
-    np.save('b.npy',label2k) 
     digits = range(10)
     if 0:
         sup_ims = []
@@ -119,7 +124,11 @@ if pnet.parallel.main(__name__):
                 print('Done.')
                 end1 = time.time()
 
-                net.save('tmp.npy')
+                #clnet.save('mod-{classifier}-ori{orientations}-rs{rotspread}-cl{n_classes}-ps{part_shape}.npy'.format(classifier=classifier, rotspread=rotspread, n_classes=n_classes, orientations=n_orientations, part_shape=part_shape))
+                if args.output is not None:
+                    clnet.save(args.output)
+
+                #net.save('tmp.npy')
 
                 #print("Now testing...")
                 ### Test ######################################################################
