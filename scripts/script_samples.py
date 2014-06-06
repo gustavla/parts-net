@@ -68,7 +68,7 @@ if pnet.parallel.main(__name__):
     #ims2k = data[10000:12000]
     #label2k = np.array(label[10000:12000])
 
-    ims2k, label2k = ag.io.load_mnist('testing', selection=slice(200))
+    ims2k, label2k = ag.io.load_mnist('testing')
 
     #np.save('b.npy',label2k) 
     print(ims2k.shape)
