@@ -23,7 +23,7 @@ if pnet.parallel.main(__name__):
     #parser.add_argument('param', metavar='<param>', type=string)
     
     parser.add_argument('model',metavar='<model file>',type=argparse.FileType('rb'), help='Filename of model file')
-    parser.add_argument('classifier',metavar='<classifier>', type=str, choices=('svm-mixture', 'rot-mixture'), help='num Of Class Model')
+    parser.add_argument('classifier',metavar='<classifier>', type=str, choices=('mixture', 'svm-mixture', 'rot-mixture'), help='num Of Class Model')
     parser.add_argument('samples',metavar='<samples>', type=int, help='Samples per class')
     parser.add_argument('numOfClassModel',metavar='<numOfClassModel>', type=str, help='num Of Class Model')
 
@@ -35,7 +35,7 @@ if pnet.parallel.main(__name__):
     N = args.samples
 
     if numOfClassModel == 'adaptive':
-        num_class_models = [max(20, np.ceil(N / 100))]
+        num_class_models = [min(20, int(np.ceil(N / 500)))]
     elif numOfClassModel == 'many':
         num_class_models = [1, 2, 5, 10, 15, 20]
     elif numOfClassModel == 'afew':
@@ -45,8 +45,8 @@ if pnet.parallel.main(__name__):
 
     if args.classifier == 'svm-mixture':
         classifier_names = ['mixture', 'svm']
-
-    classifier_name = args.classifier
+    else:
+        classifier_names = [args.classifier]
 
     #data = np.load(args.data)
     #label = np.load(args.label)
@@ -87,7 +87,7 @@ if pnet.parallel.main(__name__):
     #print(sup_labels)
 
     if net.layers[0].name == 'oriented-parts-layer':
-        rotspreads = [0, 1]
+        rotspreads = [0]
     else:
         rotspreads = [0]
 
@@ -104,10 +104,14 @@ if pnet.parallel.main(__name__):
 
         for n_classes in num_class_models0:
             for rotspread in rotspreads:
+                trials = 5
+                if N == 6000:
+                    trials = 1 
+
                 rs = np.random.RandomState(0)
                 error_rates = []
                 print('Classifier:', classifier, 'Components:', n_classes, 'Rotational spreading:', rotspread)
-                for trial in xrange(2):
+                for trial in xrange(trials):
                     II = np.arange(len(all_images))
                     rs.shuffle(II)
 
