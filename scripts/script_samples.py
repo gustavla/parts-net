@@ -104,7 +104,7 @@ if pnet.parallel.main(__name__):
 
         for n_classes in num_class_models0:
             for rotspread in rotspreads:
-                trials = 5
+                trials = 3
                 if N == 6000:
                     trials = 1 
 
@@ -112,21 +112,25 @@ if pnet.parallel.main(__name__):
                 error_rates = []
                 print('Classifier:', classifier, 'Components:', n_classes, 'Rotational spreading:', rotspread)
                 for trial in xrange(trials):
-                    II = np.arange(len(all_images))
-                    rs.shuffle(II)
+                    if N == 60000:
+                        sup_ims = all_images
+                        sup_labels = all_labels
+                    else:
+                        II = np.arange(len(all_images))
+                        rs.shuffle(II)
 
-                    perm_images = all_images[II]
-                    perm_labels = all_labels[II]
+                        perm_images = all_images[II]
+                        perm_labels = all_labels[II]
 
-                    image_slices = []
-                    label_slices = []
-                    for d in digits:
-                        X = perm_images[perm_labels == d][:N]
-                        image_slices.append(X)
-                        label_slices.append(np.ones(len(X), dtype=np.int64) * d)
+                        image_slices = []
+                        label_slices = []
+                        for d in digits:
+                            X = perm_images[perm_labels == d][:N]
+                            image_slices.append(X)
+                            label_slices.append(np.ones(len(X), dtype=np.int64) * d)
 
-                    sup_ims = np.concatenate(image_slices)
-                    sup_labels = np.concatenate(label_slices)
+                        sup_ims = np.concatenate(image_slices)
+                        sup_labels = np.concatenate(label_slices)
 
 
                     if net.layers[0].name == 'oriented-parts-layer':

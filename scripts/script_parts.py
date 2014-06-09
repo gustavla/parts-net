@@ -56,7 +56,7 @@ if pnet.parallel.main(__name__):
                                                           threshold=2, 
                                                           #samples_per_image=20, 
                                                           samples_per_image=50, 
-                                                          max_samples=60000,
+                                                          max_samples=80000,
                                                           #max_samples=5000,
                                                           #max_samples=100000,
                                                           #max_samples=2000,

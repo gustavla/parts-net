@@ -26,7 +26,7 @@ def imap_unordered(f, workloads, star=False):
     from mpi4py import MPI
     N = MPI.COMM_WORLD.Get_size() - 1
     if N == 0 or not _g_initialized:
-        mapf = [itr.imap, itr.starmap][star]
+        mapf = [map, itr.starmap][star]
         for res in mapf(f, workloads):
             yield res
         return
@@ -57,7 +57,7 @@ def imap(f, workloads, star=False):
     from mpi4py import MPI
     N = MPI.COMM_WORLD.Get_size() - 1
     if N == 0 or not _g_initialized:
-        mapf = [itr.imap, itr.starmap][star]
+        mapf = [map, itr.starmap][star]
         for res in mapf(f, workloads):
             yield res
         return

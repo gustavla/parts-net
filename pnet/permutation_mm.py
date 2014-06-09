@@ -1,4 +1,4 @@
-
+from __future__ import division, print_function, absolute_import
 import numpy as np
 import itertools as itr
 import amitgroup as ag
@@ -148,7 +148,7 @@ class PermutationMM(object):
             all_mu.append(theta)
             all_loglikelihoods.append(loglikelihood)
 
-        print all_loglikelihoods
+        print(all_loglikelihoods)
         best_i = np.argmax(all_loglikelihoods)
         self.weights_ = all_pi[best_i]
         self.means_ = all_mu[best_i]
