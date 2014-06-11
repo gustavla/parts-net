@@ -56,7 +56,7 @@ class ImageGrid(object):
             return self._data
         else:
             from skimage.transform import resize
-            data = resize(self._data, tuple([self._data.shape[i] * scale for i in xrange(2)]), order=0)
+            data = resize(self._data, tuple([self._data.shape[i] * scale for i in range(2)]), order=0)
             # Make sure the borders stay the same color
             data[:scale*self._border] = self._border_color
             data[-scale*self._border:] = self._border_color

@@ -52,7 +52,7 @@ class MixtureClassificationLayer(SupervisedLayer):
             self._means = np.zeros((K, self._n_components))
             self._sigmas = np.zeros((K, self._n_components))
 
-        for k in xrange(K):
+        for k in range(K):
             Xk = X[Y == k]
             Xk = Xk.reshape((Xk.shape[0], -1))
 

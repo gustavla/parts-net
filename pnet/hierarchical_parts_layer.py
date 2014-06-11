@@ -111,13 +111,13 @@ class HierarchicalPartsLayer(Layer):
             lower0 = scoreatpercentile(resp[...,0].ravel(), 50)
             lower1 = scoreatpercentile(resp[...,1].ravel(), 50)
             lows = [lower0, lower1]
-            hier_flatpatches = [flatpatches[resp[...,m] >= lows[m]] for m in xrange(self._num_parts_per_layer)]
+            hier_flatpatches = [flatpatches[resp[...,m] >= lows[m]] for m in range(self._num_parts_per_layer)]
 
             # Reset the means
-            for m in xrange(self._num_parts_per_layer):
+            for m in range(self._num_parts_per_layer):
                 mm.means_[m] = np.clip(hier_flatpatches[m].mean(0), min_prob, 1 - min_prob)
         else:
-            hier_flatpatches = [flatpatches[comps == m] for m in xrange(self._num_parts_per_layer)]
+            hier_flatpatches = [flatpatches[comps == m] for m in range(self._num_parts_per_layer)]
         
         #if depth == 0:
             #print('counts', counts) 
@@ -134,7 +134,7 @@ class HierarchicalPartsLayer(Layer):
 
         if depth+1 < self._depth:
             # Iterate
-            for m in xrange(self._num_parts_per_layer):
+            for m in range(self._num_parts_per_layer):
                 parts, weights, counts0 = self._train_inner(hier_flatpatches[m], shape, hier, depth=depth+1)
 
                 all_parts.append(parts)
@@ -160,7 +160,7 @@ class HierarchicalPartsLayer(Layer):
         kp_patches = patches.reshape((patches.shape[0], -1, patches.shape[-1]))
         flatpatches = kp_patches.reshape((kp_patches.shape[0], -1))
 
-        hier = [[] for _ in xrange(self._depth)]
+        hier = [[] for _ in range(self._depth)]
 
         all_parts, all_weights, counts  = self._train_inner(flatpatches, patches.shape[1:], hier)
 
@@ -185,13 +185,13 @@ class HierarchicalPartsLayer(Layer):
             logprob, resp = mm.eval(flatpatches)
             comps = resp.argmax(-1)
 
-            #for d in xrange(self._depth):
+            #for d in range(self._depth):
             #import pdb; pdb.set_trace()
 
-            for d in reversed(xrange(len(hier))):
-                for j in xrange(len(hier[d])):
+            for d in reversed(range(len(hier))):
+                for j in range(len(hier[d])):
                     hier_dj = hier[d][j]
-                    for k in xrange(len(hier_dj)):
+                    for k in range(len(hier_dj)):
                         if d == len(hier) - 1:
                             hier[d][j][k] = mm.means_[j*self._num_parts_per_layer + k].reshape(patches.shape[1:])
                         else:
@@ -268,16 +268,16 @@ class HierarchicalPartsLayer(Layer):
         for Xi in X:
 
             # How many patches could we extract?
-            w, h = [Xi.shape[i]-self._part_shape[i]+1 for i in xrange(2)]
+            w, h = [Xi.shape[i]-self._part_shape[i]+1 for i in range(2)]
 
             # TODO: Maybe shuffle an iterator of the indices?
-            indices = list(itr.product(xrange(w-1), xrange(h-1)))
+            indices = list(itr.product(range(w-1), range(h-1)))
             rs.shuffle(indices)
             i_iter = itr.cycle(iter(indices))
 
-            for sample in xrange(samples_per_image):
+            for sample in range(samples_per_image):
                 N = 200
-                for tries in xrange(N):
+                for tries in range(N):
                     x, y = i_iter.next()
                     selection = [slice(x, x+self._part_shape[0]), slice(y, y+self._part_shape[1])]
 
@@ -331,21 +331,21 @@ class HierarchicalPartsLayer(Layer):
         C = LinearSegmentedColormap('BlueRed1', cdict1)
 
         grid = pnet.plot.ImageGrid(N, D, self._part_shape, border_color=(0.6, 0.2, 0.2))
-        for i in xrange(N):
-            for j in xrange(D):
+        for i in range(N):
+            for j in range(D):
                 grid.set_image(self._parts[i,...,j], i, j, cmap=C, vmin=0, vmax=1)#cm.BrBG)
 
         grid.save(vz.generate_filename(), scale=5)
 
         vz.title('HIERARCHY')
         base_offset = 0
-        for depth in xrange(self._depth):
+        for depth in range(self._depth):
             vz.section('Depth', depth)
-            for x in xrange(self._num_parts_per_layer ** depth):
+            for x in range(self._num_parts_per_layer ** depth):
                 #grid = pnet.plot.ImageGrid(self._num_parts_per_layer, D, self._part_shape, border_color=(0.6, 0.2, 0.2))
                 grid = pnet.plot.ImageGrid(1, D, self._part_shape, border_color=(0.6, 0.2, 0.2))
-                #for i in xrange(self._num_parts_per_layer):
-                for j in xrange(D):
+                #for i in range(self._num_parts_per_layer):
+                for j in range(D):
                     grid.set_image(self._w[base_offset+x,...,j], 0, j, cmap=cm.RdBu_r, vmin=-5, vmax=5)#cm.BrBG)
 
                 grid.save(vz.generate_filename(), scale=5)
@@ -390,7 +390,7 @@ class HierarchicalPartsLayer(Layer):
 
             means = np.zeros(self._num_parts)
             sigmas = np.zeros(self._num_parts)
-            for f in xrange(self._num_parts):
+            for f in range(self._num_parts):
                 llh0 = llhs[parts == f,f] 
                 means[f] = llh0.mean()
                 sigmas[f] = llh0.std()

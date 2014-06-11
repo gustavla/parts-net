@@ -196,16 +196,16 @@ class PartsLayer(Layer):
         for Xi in X:
 
             # How many patches could we extract?
-            w, h = [Xi.shape[i]-self._part_shape[i]+1 for i in xrange(2)]
+            w, h = [Xi.shape[i]-self._part_shape[i]+1 for i in range(2)]
 
             # TODO: Maybe shuffle an iterator of the indices?
-            indices = list(itr.product(xrange(w-1), xrange(h-1)))
+            indices = list(itr.product(range(w-1), range(h-1)))
             rs.shuffle(indices)
             i_iter = itr.cycle(iter(indices))
 
-            for sample in xrange(samples_per_image):
+            for sample in range(samples_per_image):
                 N = 200
-                for tries in xrange(N):
+                for tries in range(N):
                     x, y = i_iter.next()
                     selection = [slice(x, x+self._part_shape[0]), slice(y, y+self._part_shape[1])]
 
@@ -259,8 +259,8 @@ class PartsLayer(Layer):
         from matplotlib.colors import LinearSegmentedColormap
         C = LinearSegmentedColormap('BlueRed1', cdict1)
 
-        for i in xrange(N):
-            for j in xrange(D):
+        for i in range(N):
+            for j in range(D):
                 grid.set_image(self._parts[i,...,j], i, j, cmap=C, vmin=0, vmax=1)#cm.BrBG)
 
         grid.save(vz.generate_filename(), scale=5)
@@ -296,7 +296,7 @@ class PartsLayer(Layer):
 
             means = np.zeros(self._num_parts)
             sigmas = np.zeros(self._num_parts)
-            for f in xrange(self._num_parts):
+            for f in range(self._num_parts):
                 llh0 = llhs[parts == f,f] 
                 means[f] = llh0.mean()
                 sigmas[f] = llh0.std()

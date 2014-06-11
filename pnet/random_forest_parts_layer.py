@@ -28,7 +28,7 @@ class RandomForestPartsLayer(PartsLayer):
 
         th = self._settings['threshold']
 
-        for i, j in itr.product(xrange(dims[0]), xrange(dims[1])):
+        for i, j in itr.product(range(dims[0]), range(dims[1])):
             Xij = X[:,i:i+self._part_shape[0],j:j+self._part_shape[1]]
 
             Xij = Xij.reshape((Xij.shape[0], -1))

@@ -30,13 +30,13 @@ class GaussianPartsLayer(Layer):
 
         ps = self._part_shape
 
-        #patches = np.asarray([X[:,i:i+ps[0],j:j+ps[1]] for i, j in itr.product(xrange(X.shape[0]-ps[0]+1), xrange(X.shape[1]-ps[1]+1))])
+        #patches = np.asarray([X[:,i:i+ps[0],j:j+ps[1]] for i, j in itr.product(range(X.shape[0]-ps[0]+1), range(X.shape[1]-ps[1]+1))])
 
         dim = (X.shape[1]-ps[0]+1, X.shape[2]-ps[1]+1)
 
         feature_map = np.zeros((X.shape[0],) + dim, dtype=np.int64)
 
-        for i, j in itr.product(xrange(dim[0]), xrange(dim[1])):
+        for i, j in itr.product(range(dim[0]), range(dim[1])):
             feature_map[:,i,j] = self._clf.predict(X[:,i:i+ps[0],j:j+ps[1]].reshape((X.shape[0], -1)))
 
         return (feature_map[...,np.newaxis], self._num_parts)
@@ -103,16 +103,16 @@ class GaussianPartsLayer(Layer):
         for Xi in X:
 
             # How many patches could we extract?
-            w, h = [Xi.shape[i]-self._part_shape[i]+1 for i in xrange(2)]
+            w, h = [Xi.shape[i]-self._part_shape[i]+1 for i in range(2)]
 
             # TODO: Maybe shuffle an iterator of the indices?
-            indices = list(itr.product(xrange(w-1), xrange(h-1)))
+            indices = list(itr.product(range(w-1), range(h-1)))
             rs.shuffle(indices)
             i_iter = itr.cycle(iter(indices))
 
-            for sample in xrange(samples_per_image):
+            for sample in range(samples_per_image):
                 N = 200
-                for tries in xrange(N):
+                for tries in range(N):
                     x, y = i_iter.next()
                     selection = [slice(x, x+self._part_shape[0]), slice(y, y+self._part_shape[1])]
 
@@ -144,7 +144,7 @@ class GaussianPartsLayer(Layer):
 
         grid = pnet.plot.ImageGrid(side, side, self._part_shape, border_color=(0.6, 0.2, 0.2))
 
-        for n in xrange(self._num_parts):
+        for n in range(self._num_parts):
             grid.set_image(mu[n], n//side, n%side, vmin=0, vmax=1, cmap=cm.gray)
 
         grid.save(vz.generate_filename(ext='png'))

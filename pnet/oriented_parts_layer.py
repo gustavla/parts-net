@@ -8,6 +8,11 @@ from pnet.layer import Layer
 import pnet
 import pnet.matrix
 import random
+import sys
+
+if sys.version_info[0] == 2:
+    def next(iterator):
+        return iterator.next()
 
 # TEMP
 
@@ -29,17 +34,17 @@ def _get_patches(self, X):
     for Xi in X:
 
         # How many patches could we extract?
-        w, h = [Xi.shape[i]-self._part_shape[i]+1 for i in xrange(2)]
+        w, h = [Xi.shape[i]-self._part_shape[i]+1 for i in range(2)]
 
         # TODO: Maybe shuffle an iterator of the indices?
-        indices = list(itr.product(xrange(w-1), xrange(h-1)))
+        indices = list(itr.product(range(w-1), range(h-1)))
         rs.shuffle(indices)
         i_iter = itr.cycle(iter(indices))
 
-        for sample in xrange(samples_per_image):
+        for sample in range(samples_per_image):
             N = 200
-            for tries in xrange(N):
-                x, y = i_iter.next()
+            for tries in range(N):
+                x, y = next(i_iter)
                 selection = [slice(x, x+self._part_shape[0]), slice(y, y+self._part_shape[1])]
 
                 patch = Xi[selection]
@@ -120,10 +125,10 @@ def _extract_batch(im, settings, num_parts, num_orientations, part_shape, parts)
         between_feature_spreading = np.zeros((num_parts, rotspread*2 + 1), dtype=np.int64)
         ORI = num_orientations 
 
-        for f in xrange(num_parts):
+        for f in range(num_parts):
             thepart = f // ORI
             ori = f % ORI 
-            for i in xrange(rotspread*2 + 1):
+            for i in range(rotspread*2 + 1):
                 between_feature_spreading[f,i] = thepart * ORI + (ori - rotspread + i) % ORI
 
         bb = np.concatenate([between_feature_spreading, -np.ones((1, rotspread*2 + 1), dtype=np.int64)], 0)
@@ -192,7 +197,7 @@ class OrientedPartsLayer(Layer):
         P = ORI * POL
 
         def cycles(X):
-            return np.asarray([np.concatenate([X[i:], X[:i]]) for i in xrange(len(X))])
+            return np.asarray([np.concatenate([X[i:], X[:i]]) for i in range(len(X))])
 
         RR = np.arange(ORI)
         PP = np.arange(POL)
@@ -216,7 +221,7 @@ class OrientedPartsLayer(Layer):
 
         X = raw_patches.reshape((raw_patches.shape[0], -1))
 
-        if 1:
+        if 0:
             ret = em(X, self._num_true_parts, n_iter,
                      permutation=permutation, numpy_rng=seed,
                      verbose=True)
@@ -252,7 +257,7 @@ class OrientedPartsLayer(Layer):
             ok = H <= Hth
 
             blocks = []
-            for i in xrange(self._num_true_parts):
+            for i in range(self._num_true_parts):
                 if ok[i]:
                     blocks.append(self._parts[i*self._num_orientations:(i+1)*self._num_orientations])
             
@@ -263,8 +268,8 @@ class OrientedPartsLayer(Layer):
         if 0:
             from pylab import cm
             grid2 = pnet.plot.ImageGrid(self._num_true_parts, 8, raw_originals.shape[2:])
-            for n in xrange(self._num_true_parts):
-                for e in xrange(8):
+            for n in range(self._num_true_parts):
+                for e in range(8):
                     grid2.set_image(self._parts[n * self._num_orientations,...,e], n, e, vmin=0, vmax=1, cmap=cm.RdBu_r)
             grid2.save(vz.generate_filename(), scale=5)
 
@@ -273,19 +278,14 @@ class OrientedPartsLayer(Layer):
         print(self._train_info['counts'])
 
         self._visparts = np.asarray([
-            raw_originals[comps[:,0]==k,comps[comps[:,0]==k][:,1]].mean(0) for k in xrange(self._num_true_parts)             
+            raw_originals[comps[:,0]==k,comps[comps[:,0]==k][:,1]].mean(0) for k in range(self._num_true_parts)             
         ])
 
         if 0:
 
             XX = [
-                raw_originals[comps[:,0]==k,comps[comps[:,0]==k][:,1]] for k in xrange(self._num_true_parts)             
+                raw_originals[comps[:,0]==k,comps[comps[:,0]==k][:,1]] for k in range(self._num_true_parts)             
             ]
-
-            #import IPython
-            #IPython.embed()
-
-            #import pdb; pdb.set_trace()
 
             N = 100
 
@@ -297,22 +297,22 @@ class OrientedPartsLayer(Layer):
 
             if 0:
                 grid0 = pnet.plot.ImageGrid(N, self._num_orientations, raw_originals.shape[2:], border_color=(1, 1, 1))
-                for i in xrange(min(N, raw_originals_m.shape[0])): 
-                    for j in xrange(self._num_orientations):
+                for i in range(min(N, raw_originals_m.shape[0])): 
+                    for j in range(self._num_orientations):
                         grid0.set_image(raw_originals_m[i,(mcomps[i,1]+j)%self._num_orientations], i, j, vmin=0, vmax=1, cmap=cm.gray)
 
                 grid0.save(vz.generate_filename(), scale=3)
 
                 grid0 = pnet.plot.ImageGrid(self._num_true_parts, N, raw_originals.shape[2:], border_color=(1, 1, 1))
-                for m in xrange(self._num_true_parts):
-                    for i in xrange(min(N, XX[m].shape[0])):
+                for m in range(self._num_true_parts):
+                    for i in range(min(N, XX[m].shape[0])):
                         grid0.set_image(XX[m][i], m, i, vmin=0, vmax=1, cmap=cm.gray)
                         #grid0.set_image(XX[i][j], i, j, vmin=0, vmax=1, cmap=cm.gray)
 
                 grid0.save(vz.generate_filename(), scale=3)
 
                 grid1 = pnet.plot.ImageGrid(1, self._num_true_parts, raw_originals.shape[2:], border_color=(1, 1, 1))
-                for m in xrange(self._num_true_parts):
+                for m in range(self._num_true_parts):
                     grid1.set_image(self._visparts[m], 0, m, vmin=0, vmax=1, cmap=cm.gray)
 
                 grid1.save(vz.generate_filename(), scale=5)
@@ -346,8 +346,8 @@ class OrientedPartsLayer(Layer):
             size = img.shape[:2]
             # Make it square, to accommodate all types of rotations
             new_size = int(np.max(size) * np.sqrt(2))
-            img_padded = ag.util.zeropad_to_shape(img, (new_size, new_size))
-            pad = [(new_size-size[i])//2 for i in xrange(2)]
+            img_padded = ag.util.pad_to_size(img, (new_size, new_size))
+            pad = [(new_size-size[i])//2 for i in range(2)]
 
             angles = np.arange(0, 360, 360/ORI)
             radians = angles*np.pi/180
@@ -383,15 +383,15 @@ class OrientedPartsLayer(Layer):
             # TODO: Maybe shuffle an iterator of the indices?
 
             # These indices represent the center of patches
-            indices = list(itr.product(xrange(pad[0]+avoid_edge, pad[0]+img.shape[0]-avoid_edge), xrange(pad[1]+avoid_edge, pad[1]+img.shape[1]-avoid_edge)))
+            indices = list(itr.product(range(pad[0]+avoid_edge, pad[0]+img.shape[0]-avoid_edge), range(pad[1]+avoid_edge, pad[1]+img.shape[1]-avoid_edge)))
 
             #print(indices)
             random.seed(0)
             random.shuffle(indices)
             i_iter = itr.cycle(iter(indices))
 
-            minus_ps = [-ps[i]//2 for i in xrange(2)]
-            plus_ps = [minus_ps[i] + ps[i] for i in xrange(2)]
+            minus_ps = [-ps[i]//2 for i in range(2)]
+            plus_ps = [minus_ps[i] + ps[i] for i in range(2)]
 
             E = all_edges.shape[-1]
             #th = _threshold_in_counts(self._settings, E, self._settings['bedges']['contrast_insensitive'], self._part_shape)
@@ -403,11 +403,11 @@ class OrientedPartsLayer(Layer):
 
             rs2 = np.random.RandomState(0)
 
-            for sample in xrange(samples_per_image):
-                for tries in xrange(100):
+            for sample in range(samples_per_image):
+                for tries in range(100):
                     #selection = [slice(x, x+self.patch_size[0]), slice(y, y+self.patch_size[1])]
                     #x, y = random.randint(0, w-1), random.randint(0, h-1)
-                    x, y = i_iter.next()
+                    x, y = next(i_iter)
 
                     selection0 = [0, slice(x+minus_ps[0], x+plus_ps[0]), slice(y+minus_ps[1], y+plus_ps[1])]
 
@@ -439,9 +439,9 @@ class OrientedPartsLayer(Layer):
                         patch = np.zeros((ORI * POL,) + ps + (E,))
                         vispatch = np.zeros((ORI * POL,) + ps)
 
-                        for ori in xrange(ORI * POL):
+                        for ori in range(ORI * POL):
                             p = matrices[ori] * XY
-                            ip = [int(round(p[i])) for i in xrange(2)]
+                            ip = [int(round(float(p[i]))) for i in range(2)]
 
                             selection = [ori, slice(ip[0]+minus_ps[0], ip[0]+plus_ps[0]), slice(ip[1]+minus_ps[1], ip[1]+plus_ps[1])]
 
@@ -489,7 +489,7 @@ class OrientedPartsLayer(Layer):
 
         side = int(np.ceil(np.sqrt(self._num_true_parts)))
         grid0 = pnet.plot.ImageGrid(side, side, self._visparts.shape[1:])
-        for i in xrange(self._visparts.shape[0]):
+        for i in range(self._visparts.shape[0]):
             grid0.set_image(self._visparts[i], i//side, i%side, vmin=0, vmax=1, cmap=cm.gray)
     
         grid0.save(vz.generate_filename(), scale=5)
@@ -515,8 +515,8 @@ class OrientedPartsLayer(Layer):
         from matplotlib.colors import LinearSegmentedColormap
         C = LinearSegmentedColormap('BlueRed1', cdict1)
 
-        for i in xrange(N):
-            for j in xrange(D):
+        for i in range(N):
+            for j in range(D):
                 grid.set_image(self._parts[i,...,j], i, j, cmap=C, vmin=0, vmax=1)#cm.BrBG)
 
         grid.save(vz.generate_filename(), scale=5)

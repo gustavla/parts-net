@@ -15,9 +15,12 @@ def test(ims, labels, net):
     yhat = net.classify(ims)
     return yhat == labels
 
+print("0")
+
 if pnet.parallel.main(__name__): 
     ag.set_verbose(True)
     print("1")
+    sys.stdout.flush()
     import argparse
     parser = argparse.ArgumentParser()
     #parser.add_argument('seed', metavar='<seed>', type=int, help='Random seed')
@@ -30,6 +33,8 @@ if pnet.parallel.main(__name__):
     parser.add_argument('seed', type=int, default=1)
     parser.add_argument('saveFile', metavar='<part Model file>', type=argparse.FileType('wb'),help='Filename of savable model file')
     args = parser.parse_args()
+    print("2")
+    sys.stdout.flush()
     part_size = args.size
     num_orientations = args.orientations
     numParts = args.numParts
@@ -47,6 +52,8 @@ if pnet.parallel.main(__name__):
 
     for training_seed in [seed]:
         print("Inside")
+        print("3")
+        sys.stdout.flush()
         if 1:
             layers = [
                 pnet.OrientedPartsLayer(numParts, num_orientations, (part_size, part_size), settings=dict(outer_frame=2, 
@@ -118,8 +125,10 @@ if pnet.parallel.main(__name__):
 
         start0 = time.time()
         print('Training unsupervised...')
+        sys.stdout.flush()
         net.train(ims10k)
         print('Done.')
+        sys.stdout.flush()
         end0 = time.time()
 
         net.save(saveFile)        

@@ -61,7 +61,7 @@ class RotationMixtureClassificationLayer(SupervisedLayer):
         mm_models = []
         mm_viz = []
 
-        for k in xrange(K):
+        for k in range(K):
             Xk = X[Y == k]
 
             assert Xk.shape[-1] == 1
@@ -79,13 +79,13 @@ class RotationMixtureClassificationLayer(SupervisedLayer):
             blocks = [] 
 
             print('C')
-            for ori in xrange(0, self._n_orientations):
+            for ori in range(0, self._n_orientations):
                 angle = ori / self._n_orientations * 360
                 # Rotate all images, apply rotational spreading, then do pooling
 
                 if 0:
                     print(ori, 'R{')
-                    rots = np.asarray([rotate_patch_map(XB[i], angle) for i in xrange(XB.shape[0])])
+                    rots = np.asarray([rotate_patch_map(XB[i], angle) for i in range(XB.shape[0])])
                     print(ori, 'R}')
 
 
@@ -117,7 +117,7 @@ class RotationMixtureClassificationLayer(SupervisedLayer):
 
                 import gv
 
-                for i in xrange(self._n_orientations):
+                for i in range(self._n_orientations):
                     gv.img.save_image(vz.generate_filename(), blocks[0,i,:,:,0].sum(-1))
 
                 vz.finalize()
@@ -138,7 +138,7 @@ class RotationMixtureClassificationLayer(SupervisedLayer):
 
 
             def cycles(X):
-                return np.asarray([np.concatenate([X[i:], X[:i]]) for i in xrange(len(X))])
+                return np.asarray([np.concatenate([X[i:], X[:i]]) for i in range(len(X))])
 
             RR = np.arange(ORI)
             PP = np.arange(POL)
@@ -195,20 +195,20 @@ class RotationMixtureClassificationLayer(SupervisedLayer):
 
                 vispart_blocks = []
 
-                for phase in xrange(n_orientations):
+                for phase in range(n_orientations):
                     visparts = np.asarray([
-                        rot_ims10k[comps[:,0]==k,comps[comps[:,0]==k][:,1]].mean(0) for k in xrange(n_comp)
+                        rot_ims10k[comps[:,0]==k,comps[comps[:,0]==k][:,1]].mean(0) for k in range(n_comp)
                     ])
 
                     M = 50
 
                     grid0 = pnet.plot.ImageGrid(n_comp, min(M, np.max(map(len, XX))), ims10k.shape[1:])
-                    for k in xrange(n_comp):
-                        for i in xrange(min(M, len(XX[k]))):
+                    for k in range(n_comp):
+                        for i in range(min(M, len(XX[k]))):
                             grid0.set_image(XX[k][i], k, i, vmin=0, vmax=1, cmap=cm.gray)
                     grid0.save(vz.generate_filename(), scale=3)
 
-                    for k in xrange(n_comp):
+                    for k in range(n_comp):
                         grid.set_image(visparts[k], d, k, vmin=0, vmax=1, cmap=cm.gray)
 
 

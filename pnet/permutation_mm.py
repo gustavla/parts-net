@@ -4,6 +4,7 @@ import itertools as itr
 import amitgroup as ag
 from scipy.special import logit
 from scipy.misc import logsumexp
+import time
 
 # TEMP
 #import vz
@@ -15,11 +16,11 @@ class PermutationMM(object):
 
         self.random_state = random_state
         self.n_components = n_components
-        if isinstance(permutations, (int, long)):
+        if isinstance(permutations, int):
             # Cycle through them
             P = permutations
             self.permutations = np.zeros((P, P))
-            for p1, p2 in itr.product(xrange(P), xrange(P)):
+            for p1, p2 in itr.product(range(P), range(P)):
                 self.permutations[p1,p2] = (p1 + p2) % P
         else:
             self.permutations = np.asarray(permutations)
@@ -46,12 +47,12 @@ class PermutationMM(object):
         #import scipy.sparse
         #X = scipy.sparse.csr_matrix(X)
     
-        for trial in xrange(self.n_init):
+        for trial in range(self.n_init):
             pi = np.ones((K, P)) / (K * P)
 
             # Initialize
             clusters = self.random_state.randint(K, size=N)
-            theta = np.asarray([np.mean(X[clusters == k], axis=0) for k in xrange(K)])
+            theta = np.asarray([np.mean(X[clusters == k], axis=0) for k in range(K)])
             theta[:] = np.clip(theta, eps, 1 - eps)
 
             # TEMP
@@ -64,19 +65,16 @@ class PermutationMM(object):
             self.q = np.empty((N, K, P))
             logq = np.empty((N, K, P))
             loglikelihood = None
-            for loop in xrange(self.n_iter):
-                if calc_loglikelihood:
-                    ag.info("Iteration ", loop+1, 'log-likelihood', loglikelihood)
-                else:
-                    ag.info("Iteration ", loop+1)
+            for loop in range(self.n_iter):
+                start = time.clock()
                 #logq[:] = np.log(pi)[np.newaxis,:,np.newaxis]
 
-                #for k, p in itr.product(xrange(K), xrange(P)):
+                #for k, p in itr.product(range(K), range(P)):
                 #    logq[:,k,p] = np.log(pi[k,p])
                 logq[:] = np.log(pi[np.newaxis])
 
-                for p in xrange(P):
-                    for shift in xrange(P):
+                for p in range(P):
+                    for shift in range(P):
                         #p0_ = (p + shift)%P
                         p0 = self.permutations[shift,p]
                         #assert p0 == p0_, self.permutations
@@ -87,7 +85,11 @@ class PermutationMM(object):
                 #normq = self.q / np.apply_over_axes(np.sum, self.q, [1, 2])
                 #self.q /= np.apply_over_axes(np.sum, self.q, [1, 2])
                 #q2 = np.exp(logq - logsumexp(logq.reshape((-1, logq.shape[-1])), axis=0)[...,np.newaxis,np.newaxis])
-                norm_logq = (logq - logsumexp(logq.reshape((logq.shape[0], -1)), axis=-1)[...,np.newaxis,np.newaxis]).clip(min=-200)
+
+
+                #            vvvv  double check this, shouldn't it be like logq.max() or st?
+                qZ = logsumexp(logq.reshape((logq.shape[0], -1)), axis=-1)
+                norm_logq = (logq - qZ[...,np.newaxis,np.newaxis]).clip(min=-500)
                 q2 = np.exp(norm_logq)
                 self.q[:] = q2
 
@@ -102,9 +104,9 @@ class PermutationMM(object):
                 log_dens = logsumexp(np.rollaxis(norm_logq, 2, 1).reshape((-1, norm_logq.shape[1])), axis=0)[np.newaxis,:,np.newaxis]
                 dens = np.exp(log_dens)
 
-                for p in xrange(P):
+                for p in range(P):
                     v = 0 #np.dot(self.q[:,:,0].T, X[:,0]) + np.dot(self.q[:,:,1].T, X[:,1])
-                    for shift in xrange(P):
+                    for shift in range(P):
                         #p0_ = (p + shift)%P
                         p0 = self.permutations[shift,p]
                         #assert p0 == p0_, self.permutations
@@ -139,7 +141,14 @@ class PermutationMM(object):
 
                 # Calculate log likelihood
                 if calc_loglikelihood:
-                    loglikelihood = logsumexp(logq)
+                    #loglikelihood = logsumexp(logq)
+                    #loglikelihood = norm_logq.sum()
+                    loglikelihood = qZ.sum()
+
+                if calc_loglikelihood:
+                    ag.info("Iteration", loop+1, 'Time {:.2f} s'.format(time.clock() - start), 'Log-likelihood', loglikelihood)
+                else:
+                    ag.info("Iteration", loop+1, 'Time', (time.clock() - start))
                 
 
             #self.weights_ = pi
@@ -163,4 +172,4 @@ class PermutationMM(object):
         components: list 
             A list of length `num_data`  where `components[i]` indicates which mixture index the `i`-th data entry belongs the most to (results should be degenerate).
         """
-        return np.asarray([np.unravel_index(self.q[n].argmax(), self.q.shape[1:]) for n in xrange(self.q.shape[0])])
+        return np.asarray([np.unravel_index(self.q[n].argmax(), self.q.shape[1:]) for n in range(self.q.shape[0])])
