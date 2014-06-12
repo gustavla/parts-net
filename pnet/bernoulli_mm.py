@@ -236,7 +236,7 @@ class BernoulliMM(BaseEstimator):
 
 
 
-    def eval(self, X):
+    def score_samples(self, X):
         """Evaluate the model on data
 
         Compute the log probability of X under the model and
@@ -272,7 +272,7 @@ class BernoulliMM(BaseEstimator):
             if self.verbose:
                 print("Running block multiplication")
 
-            for block_id in xrange(0,X.shape[0],self.blocksize):
+            for block_id in range(0,X.shape[0],self.blocksize):
                 blockend = min(X.shape[0],block_id+self.blocksize)
                 lpr = (log_product_of_bernoullis_mixture_likelihood(X[block_id:blockend], self.log_odds_,
                                                             self.log_inv_mean_sums_)
@@ -302,7 +302,7 @@ class BernoulliMM(BaseEstimator):
         logprob : array_like, shape (n_samples,)
             Log probabilities of each data point in X
         """
-        logprob, _ = self.eval(X)
+        logprob, _ = self.score_samples(X)
         return logprob
 
     def predict(self, X):
@@ -316,7 +316,7 @@ class BernoulliMM(BaseEstimator):
         -------
         C : array, shape = (n_samples,)
         """
-        logprob, responsibilities = self.eval(X)
+        logprob, responsibilities = self.score_samples(X)
         return responsibilities.argmax(axis=1)
 
     def predict_proba(self, X):
@@ -337,9 +337,9 @@ class BernoulliMM(BaseEstimator):
         # flatten data to just be binary vectors
         data_length = np.prod(data_shape)
         if len(data_shape) > 1:
-            logprob, responsibilities = self.eval(X.reshape(X.shape[0],  data_length))
+            logprob, responsibilities = self.score_samples(X.reshape(X.shape[0],  data_length))
         else:
-            logprob, responsibilities = self.eval(X)
+            logprob, responsibilities = self.score_samples(X)
         return responsibilities
 
     def sample(self, n_samples=1, random_state=None):
@@ -433,7 +433,7 @@ class BernoulliMM(BaseEstimator):
                     np.clip(X[indices[i::self.n_components]].mean(0),
                             self.min_prob,
                             1-self.min_prob)
-                    for i in xrange(self.n_components)))
+                    for i in range(self.n_components)))
 
             self.log_odds_, self.log_inv_mean_sums_ = _compute_log_odds_inv_means_sums(self.means_)
 
@@ -453,7 +453,7 @@ class BernoulliMM(BaseEstimator):
             self.converged_ = False
             for i in range(self.n_iter):
                 # Expectation Step
-                curr_log_likelihood, responsibilities = self.eval(X)
+                curr_log_likelihood, responsibilities = self.score_samples(X)
                 log_likelihood.append(curr_log_likelihood.sum())
                 if self.verbose:
                     print("Iteration {0}: loglikelihood {1}".format(i, log_likelihood[-1]))
@@ -513,7 +513,7 @@ class BernoulliMM(BaseEstimator):
             if self.verbose:
                 print("Running block multiplication for mstep")
 
-            for blockstart in xrange(0,X.shape[0],self.blocksize):
+            for blockstart in range(0,X.shape[0],self.blocksize):
                 blockend=min(X.shape[0],blockstart+self.blocksize)
                 res = responsibilities[blockstart:blockend].T
                 weighted_X_sum += np.dot(res,X[blockstart:blockend])
