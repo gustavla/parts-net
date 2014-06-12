@@ -88,3 +88,7 @@ class PartsNet(Layer):
             layers.append(layer)
         obj = cls(layers)
         return obj
+
+    def __repr__(self):
+        return 'PartsNet(n_layers={n_layers})'.format(
+                    n_layers=len(self._layers))
