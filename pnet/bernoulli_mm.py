@@ -137,7 +137,6 @@ class BernoulliMM(BaseEstimator):
                  n_iter=100,tol=1e-6, n_init=1, params='wm', init_params='wm',blocksize=0,
                  float_type=np.float64,
                  binary_type=np.uint8, verbose=False):
-        # TODO: opt_type='expected'
         self.n_components = n_components
         self.thresh = thresh
         self.random_state = random_state
