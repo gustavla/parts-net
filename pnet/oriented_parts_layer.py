@@ -223,6 +223,7 @@ class OrientedPartsLayer(Layer):
 
         if 0:
             ret = em(X, self._num_true_parts, n_iter,
+                     mu_truncation=min_prob,
                      permutation=permutation, numpy_rng=seed,
                      verbose=True)
 
@@ -238,10 +239,11 @@ class OrientedPartsLayer(Layer):
             from pnet.permutation_mm import PermutationMM
             mm = PermutationMM(n_components=self._num_true_parts, permutations=permutations, n_iter=n_iter, n_init=n_init, random_state=seed, min_probability=min_prob)
 
-            mm.fit(raw_patches.reshape(raw_patches.shape[:2] + (-1,)))
+            Xflat = raw_patches.reshape(raw_patches.shape[:2] + (-1,))
+            mm.fit(Xflat)
 
 
-            comps = mm.mixture_components()
+            comps = mm.predict(Xflat)
 
             self._parts = mm.means_.reshape((mm.n_components * P,) + raw_patches.shape[2:])
 

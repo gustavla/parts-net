@@ -102,36 +102,6 @@ class BernoulliMM(BaseEstimator):
     `converged_` : bool
         True when convergence was reached in fit(), False otherwise.
 
-    data_mat : ndarray
-        Binary data array. Can be of any shape, as long as the first axis separates samples.
-        Values in the data must be either 0 or 1 for the algorithm to work. We will refer to the size of this array as ``(N, A, B, ...)``, where `N` is the number of samples, and ``(A, B, ...)`` the shape of a data sample.
-    init_type : string
-        Specifies the algorithm initialization.
-         * `unif_rand` : Unified random.
-         * `specific` : TODO: Add explanation of this.
-
-    Attributes
-    ----------
-
-    r
-
-    num_data : int
-        Number of data entries.
-    data_length : int
-        Length of data flattened.
-    iterations : int
-        Number of iterations from the EM. Will be set after calling :py:func:`run_EM`.
-    templates : ndarray
-        Mixture components templates. Array of shape ``(num_mix, A, B, ...)``, where ``(A, B, ...)`` is the shape of a single data entry.
-    work_templates : ndarray
-        Flattened mixture components templates. Array of shape ``(num_mix, data_length)``.
-    weights : ndarray
-        The probabilities of drawing from a certain mixture component. Array of length ``num_mix``.
-    affinities : ndarray
-        The contribution of each original data point to each mixture component. Array of shape ``(num_data, num_mix)``.
-    init_seed : integer
-        Seed for randomness.
-
     Examples
     --------
     Create a mixture model with 2 mixture componenents.
@@ -187,54 +157,6 @@ class BernoulliMM(BaseEstimator):
 
         self.weights_ = np.ones(self.n_components,dtype=self.float_type)/ self.n_components
         self.converged_ = False
-
-
-
-        # # If we're reconstructing a trained Bernoulli mixture model, then we might
-        # # intiailize this class without a data matrix
-        # if data_mat is not None:
-        #     self.num_data = data_mat.shape[0]
-        #     self.data_shape = data_mat.shape[1:]
-        #     # flatten data to just be binary vectors
-        #     self.data_length = np.prod(data_mat.shape[1:])
-
-        #     if isinstance(data_mat, np.matrix):
-        #         pass# Let it be
-        #         self.data_mat = data_mat
-        #         self.not_data_mat = 1 - self.data_mat
-        #         self.sparse = False
-        #     if scipy.sparse.issparse(data_mat):
-        #         pass# Let it be
-        #         self.data_mat = data_mat
-        #         self.sparse = True
-        #     else:
-        #         self.data_mat = np.asmatrix(data_mat.reshape(self.num_data, self.data_length).astype(np.uint8))
-        #         self.not_data_mat = 1 - self.data_mat
-        #         self.sparse = False
-
-        #     # If we change this to a true bitmask, we should do ~data_mat
-
-        #     self.iterations = 0
-        #     # set the random seed
-        #     self.seed = init_seed
-        #     np.random.seed(self.seed)
-
-
-        #     self.min_probability = 0.05
-
-        #     # initializing weights
-        #     self.weights = 1./num_mix * np.ones(num_mix, dtype=self.float_type)
-        #     #self.opt_type=opt_type TODO: Not used yet.
-        #     self.init_affinities_templates(init_type)
-
-        # Data sizes:
-        # data_mat : num_data * data_length
-        # weights : num_mix
-        # work_templates : num_mix * data_length
-        # affinities : num_data * num_mix
-
-
-
 
     def score_samples(self, X):
         """Evaluate the model on data

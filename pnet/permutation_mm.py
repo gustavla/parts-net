@@ -4,25 +4,69 @@ import itertools as itr
 import amitgroup as ag
 from scipy.special import logit
 from scipy.misc import logsumexp
+from sklearn.base import BaseEstimator
 import time
 
-# TEMP
-#import vz
+class PermutationMM(BaseEstimator):
+    """
+    A Bernoulli mixture model with the option of a latent permutation. Each
+    sample gets transformed a number of times into a set of blocks. The
+    parameter space is similarly divided into blocks, which when trained
+    will represent the same transformations. The latent permutation
+    dictates what parameter block a sample block should be tested against.
 
-class PermutationMM(object):
+    n_components : int, optional
+        Number of mixture components. Defaults to 1.
+
+    permutations : int or array, optional
+        If integer, the number of permutations should be specified and a cyclic
+        permutation will be automatically built.  If an array, each row is a
+        permutation of the blocks.
+
+    random_state : RandomState or an int seed (0 by default)
+        A random number generator instance
+
+    min_prob : float, optional
+        Floor for the minimum probability
+
+    thresh : float, optional
+        Convergence threshold.
+
+    n_iter : float, optional
+        Number of EM iterations to perform
+
+    n_init : int, optional
+        Number of random initializations to perform with
+        the best kept.
+
+    Attributes
+    ----------
+    `weights_` : array, shape (`n_components`,)
+        Stores the mixing weights for each component
+
+    `means_` : array, shape (`n_components`, `n_features`)
+        Mean parameters for each mixture component.
+
+    `converged_` : bool
+        True when convergence was reached in fit(), False otherwise.
+
+    """
     def __init__(self, n_components=1, permutations=1, n_iter=20, n_init=1, random_state=0, min_probability=0.05, thresh=1e-8):
+
+
         if not isinstance(random_state, np.random.RandomState):
             random_state = np.random.RandomState(random_state)
 
         self.random_state = random_state
         self.n_components = n_components
+
         if isinstance(permutations, int):
             # Cycle through them
             P = permutations
             self.permutations = np.zeros((P, P))
             for p1, p2 in itr.product(range(P), range(P)):
                 self.permutations[p1,p2] = (p1 + p2) % P
-        else:
+        else: 
             self.permutations = np.asarray(permutations)
 
         self.n_iter = n_iter
@@ -33,143 +77,170 @@ class PermutationMM(object):
         self.weights_ = None
         self.means_ = None
 
+    def score_block_samples(self, X):
+        """
+        Score complete camples according to the full model. This means that each sample
+        has all its blocks with the different transformations for each permutation.
+
+        Parameters
+        ----------
+        X : ndarray
+            Array of samples. Must have shape `(N, P, D)`, where `N` are number
+            of samples, `P` number of permutations and `D` number of dimensions
+            (flattened if multi-dimensional).
+
+        Returns
+        -------
+        logprob : array_like, shape (n_samples,)
+            Log probabilities of each full data point in X.
+        log_responsibilities : array_like, shape (n_samples, n_components, n_permutations)
+            Log posterior probabilities of each mixture component and
+            permutation for each observation.
+
+        """
+        N = X.shape[0]
+        K = self.n_components
+        P = len(self.permutations)
+
+        unorm_log_resp = np.empty((N, K, P))
+        unorm_log_resp[:] = np.log(self.weights_[np.newaxis])
+        for p in range(P):
+            for shift in range(P):
+                p0 = self.permutations[shift,p]
+                unorm_log_resp[:,:,p] += np.dot(X[:,p0], logit(self.means_[:,shift]).T)
+
+        unorm_log_resp+= np.log(1 - self.means_[:,self.permutations]).sum(2).sum(2)
+
+        logprob = logsumexp(unorm_log_resp.reshape((unorm_log_resp.shape[0], -1)), axis=-1)
+        log_resp = (unorm_log_resp - logprob[...,np.newaxis,np.newaxis]).clip(min=-500)
+
+        return logprob, log_resp 
+
+
     def fit(self, X):
+        """
+        Estimate model parameters with the expectation-maximization algorithm.
+
+        Parameters are set when constructing the estimator class.
+
+        Parameters
+        ----------
+        X : array_like, shape (n, n_permutations, n_features)
+            Array of samples, where each sample has been transformed `n_permutations` times.
+
+        """
+
+        assert X.ndim == 3
         N, P, F = X.shape
+
         assert P == len(self.permutations) 
         K = self.n_components
         eps = self.min_probability
-        #theta = self.random_state.uniform(eps, 1 - eps, size=(K, P, F))
 
-        all_pi = []# np.zeros((self.n_init, K, P))
-        all_mu = []
-        all_loglikelihoods = []
+        max_log_prob = -np.inf
 
-        #import scipy.sparse
-        #X = scipy.sparse.csr_matrix(X)
-    
         for trial in range(self.n_init):
             pi = np.ones((K, P)) / (K * P)
 
-            # Initialize
-            clusters = self.random_state.randint(K, size=N)
-            theta = np.asarray([np.mean(X[clusters == k], axis=0) for k in range(K)])
-            theta[:] = np.clip(theta, eps, 1 - eps)
+            # Initialize by picking K components at random.
+            repr_samples = X[self.random_state.choice(N, K, replace=False)]
+            self.means_ = repr_samples.clip(eps, 1 - eps)
 
-            # TEMP
-            #nice_theta = theta.reshape((theta.shape[0]*theta.shape[1], 6, 6, 8))
-            #nice_theta = np.rollaxis(nice_theta, 3, 1)
-            #vz.image_grid(nice_theta, vmin=0, vmax=1, cmap=vz.cm.RdBu_r, name='iter0', scale=4)
-
-            calc_loglikelihood = True
-
-            self.q = np.empty((N, K, P))
-            logq = np.empty((N, K, P))
-            loglikelihood = None
+            #self.q = np.empty((N, K, P))
+            loglikelihoods = []
+            converged = False
             for loop in range(self.n_iter):
                 start = time.clock()
-                #logq[:] = np.log(pi)[np.newaxis,:,np.newaxis]
+                
+                self.weights_ = pi
+                self.means_ = theta
 
-                #for k, p in itr.product(range(K), range(P)):
-                #    logq[:,k,p] = np.log(pi[k,p])
-                logq[:] = np.log(pi[np.newaxis])
+                # E-step
+                logprob, log_resp = self.score_block_samples(X)
 
-                for p in range(P):
-                    for shift in range(P):
-                        #p0_ = (p + shift)%P
-                        p0 = self.permutations[shift,p]
-                        #assert p0 == p0_, self.permutations
-                        #import pdb; pdb.set_trace()
-                        logq[:,:,p] += np.dot(X[:,p0], logit(theta[:,shift]).T) + np.log(1 - theta[:,shift]).sum(axis=1)[np.newaxis]
-
-                #self.q[:] = np.exp(logq)
-                #normq = self.q / np.apply_over_axes(np.sum, self.q, [1, 2])
-                #self.q /= np.apply_over_axes(np.sum, self.q, [1, 2])
-                #q2 = np.exp(logq - logsumexp(logq.reshape((-1, logq.shape[-1])), axis=0)[...,np.newaxis,np.newaxis])
-
-
-                #            vvvv  double check this, shouldn't it be like logq.max() or st?
-                qZ = logsumexp(logq.reshape((logq.shape[0], -1)), axis=-1)
-                norm_logq = (logq - qZ[...,np.newaxis,np.newaxis]).clip(min=-500)
-                q2 = np.exp(norm_logq)
-                self.q[:] = q2
-
-                # Try regularizing a bit
-                #self.q[:] = self.q.clip(min=1e-4)
-                #self.q[:] /= np.apply_over_axes(np.sum, self.q, [1, 2])
-
-                #norm_logq = logq - logsumexp(logq.reshape((logq.shape[0], -1)), axis=-1)[...,np.newaxis,np.newaxis]
-                #self.q[:] = np.exp(norm_logq)
-
-                #dens = np.apply_over_axes(np.sum, self.q, [0, 2])
-                log_dens = logsumexp(np.rollaxis(norm_logq, 2, 1).reshape((-1, norm_logq.shape[1])), axis=0)[np.newaxis,:,np.newaxis]
+                resp = np.exp(log_resp)
+                log_dens = logsumexp(log_resp.transpose((0, 2, 1)).reshape((-1, log_resp.shape[1])), axis=0)[np.newaxis,:,np.newaxis]
                 dens = np.exp(log_dens)
 
+                # M-step
                 for p in range(P):
-                    v = 0 #np.dot(self.q[:,:,0].T, X[:,0]) + np.dot(self.q[:,:,1].T, X[:,1])
+                    v = 0.0
                     for shift in range(P):
-                        #p0_ = (p + shift)%P
                         p0 = self.permutations[shift,p]
-                        #assert p0 == p0_, self.permutations
-                        v += np.dot(self.q[:,:,shift].T, X[:,p0])
+                        v += np.dot(resp[:,:,shift].T, X[:,p0])
 
-                    theta[:,p,:] = v
-                np.seterr(all='raise')
-                #try:
-                #vz.image_grid(self.q[:100], vmin=0, vmax=1, cmap=vz.cm.RdBu_r, name='plot')
-                #import IPython; IPython.embed()
-                #import pdb; pdb.set_trace()
-                theta = theta / dens.ravel()[:,np.newaxis,np.newaxis]
-
-
-                # TODO: Shape is hard coded here
-                #nice_theta = theta.reshape((theta.shape[0]*theta.shape[1], 6, 6, 8))
-                #nice_theta = np.rollaxis(nice_theta, 3, 1)
-                #vz.image_grid(nice_theta, vmin=0, vmax=1, cmap=vz.cm.RdBu_r, name='iter{}'.format(loop+1), scale=4)
-
-
-                #new parts
-                #pi[:] = np.apply_over_axes(np.sum, self.q, [0, 2])[0,:,0] / N
-                pi[:] = np.apply_over_axes(np.sum, self.q, [0])[0,:,:] / N
-                pi[:] = np.clip(pi, 0.0001, 1 - 0.0001)
-
-                # TODO: KEEP THIS?
-                #pi[:] = np.ones(pi.shape) / pi.shape
-
-                theta[:] = np.clip(theta, eps, 1 - eps)
-                #pi = np.clip(pi, eps, 1 - eps)
+                    self.means_[:,p,:] = v
+                self.means_ /= dens.ravel()[:,np.newaxis,np.newaxis]
+                self.means_[:] = self.means_.clip(eps, 1 - eps)
+                self.weights_[:] = (np.apply_over_axes(np.sum, resp, [0])[0,:,:] / N).clip(0.0001, 1 - 0.0001)
 
 
                 # Calculate log likelihood
-                if calc_loglikelihood:
-                    #loglikelihood = logsumexp(logq)
-                    #loglikelihood = norm_logq.sum()
-                    loglikelihood = qZ.sum()
+                loglikelihoods.append(logprob.sum())
 
-                if calc_loglikelihood:
-                    ag.info("Iteration", loop+1, 'Time {:.2f} s'.format(time.clock() - start), 'Log-likelihood', loglikelihood)
-                else:
-                    ag.info("Iteration", loop+1, 'Time', (time.clock() - start))
-                
+                ag.info("Trial {trial}/{n_trials}  Iteration {iter}  Time {time:.2f}s  Log-likelihood {llh}".format(trial=trial+1,
+                                                                                                                 n_trials=self.n_init,
+                                                                                                                 iter=loop+1,
+                                                                                                                 time=time.clock() - start,
+                                                                                                                 llh=loglikelihoods[-1]))
 
-            #self.weights_ = pi
-            #self.means_ = theta
-            all_pi.append(pi)
-            all_mu.append(theta)
-            all_loglikelihoods.append(loglikelihood)
+                if trial > 0 and abs(loglikelihoods[-1] - loglikelihoods[-2])/abs(loglikelihoods[-2]) < self.thresh:
+                    converged = True
+                    break
 
-        print(all_loglikelihoods)
+
+            if loglikelihoods[-1] > max_log_prob: 
+                ag.info("Updated best log likelihood to {0}".format(loglikelihoods[-1])
+                max_log_prob = loglikelihood[-1]
+                best_params = {'weights': self.weights_,
+                               'means' : self.means_,
+                               'converged': self.converged_}
+
+
         best_i = np.argmax(all_loglikelihoods)
-        self.weights_ = all_pi[best_i]
-        self.means_ = all_mu[best_i]
 
+        self.weights_ = best_params['weights']
+        self.means_ = best_params['means']
+        self.converged_ = best_params['converged']
 
-    def mixture_components(self):
+    def predict_flat(self, X):
         """
-        Returns a list of which mixture component each data entry is associate with the most. 
+        Returns an array of which mixture component each data entry is
+        associate with the most. This is similar to `predict`, except it
+        collapses component and permutation to a single index.
+
+        Parameters
+        ----------
+        X : ndarray
+            Data array to predict.
 
         Returns
         -------
         components: list 
-            A list of length `num_data`  where `components[i]` indicates which mixture index the `i`-th data entry belongs the most to (results should be degenerate).
+            An array of length `num_data`  where `components[i]` indicates
+            the argmax of the posteriors. The permutation EM gives two indices, but
+            they have been flattened according to ``index * component + permutation``.
         """
-        return np.asarray([np.unravel_index(self.q[n].argmax(), self.q.shape[1:]) for n in range(self.q.shape[0])])
+        logprob, log_resp = self.score_block_samples(X)
+        ii = log_resp.reshape((log_resp.shape[0], -1)).argmax(-1)
+        return ii
+
+    def predict(self, X):
+        """
+        Returns a 2D array of which mixture component each data entry is associate with the most. 
+
+        Parameters
+        ----------
+        X : ndarray
+            Data array to predict.
+
+        Returns
+        -------
+        components: list 
+            An array of shape `(num_data, 2)`  where `components[i]` indicates
+            the argmax of the posteriors. For each sample, we have two values,
+            the first is the part and the second is the permutation. 
+        """
+        ii = self.predict_flat(X)
+        return np.vstack(np.unravel_index(ii, (self.n_components, len(self.permutations)))).T
+
