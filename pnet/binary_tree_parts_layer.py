@@ -10,7 +10,7 @@ import itertools as itr
 import amitgroup as ag
 from pnet.layer import Layer
 import pnet
-from pnet.bernoullimm import BernoulliMM
+from pnet.bernoulli_mm import BernoulliMM
 
 # TODO: Use later
 if 0:
@@ -90,7 +90,6 @@ class BinaryTreePartsLayer(Layer):
 
 
     def train_from_samples(self, patches):
-        #from pnet.latent_bernoulli_mm import LatentBernoulliMM
         min_prob = self._settings.get('min_prob', 0.01)
 
         kp_patches = patches.reshape((patches.shape[0], -1, patches.shape[-1]))

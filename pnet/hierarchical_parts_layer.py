@@ -10,7 +10,7 @@ import itertools as itr
 import amitgroup as ag
 from pnet.layer import Layer
 import pnet
-from pnet.bernoullimm import BernoulliMM
+from pnet.bernoulli_mm import BernoulliMM
 
 # TODO: Use later
 if 0:

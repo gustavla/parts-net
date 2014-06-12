@@ -3,7 +3,7 @@ from pnet.layer import SupervisedLayer
 from pnet.layer import Layer
 import numpy as np
 import amitgroup as ag
-from pnet.bernoullimm import BernoulliMM
+from pnet.bernoulli_mm import BernoulliMM
 from scipy.special import logit
 
 

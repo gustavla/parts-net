@@ -66,8 +66,7 @@ class RandomForestPartsLayer(PartsLayer):
 
 
     def train_from_samples(self, patches):
-        #from pnet.latent_bernoulli_mm import LatentBernoulliMM
-        from pnet.bernoullimm import BernoulliMM
+        from pnet.bernoulli_mm import BernoulliMM
         min_prob = self._settings.get('min_prob', 0.01)
 
         support_mask = self._settings.get('support_mask')

@@ -14,7 +14,7 @@ import amitgroup as ag
 import sys
 ag.set_verbose(True)
 
-from pnet.bernoullimm import BernoulliMM
+from pnet.bernoulli_mm import BernoulliMM
 import pnet
 from sklearn.svm import LinearSVC 
 

@@ -77,8 +77,6 @@ class PartsLayer(Layer):
         return self.train_from_samples(patches)
 
     def train_from_samples(self, patches):
-        #from pnet.latent_bernoulli_mm import LatentBernoulliMM
-        from pnet.bernoullimm import BernoulliMM
         min_prob = self._settings.get('min_prob', 0.01)
 
         support_mask = self._settings.get('support_mask')
@@ -98,6 +96,7 @@ class PartsLayer(Layer):
         flatpatches = kp_patches.reshape((kp_patches.shape[0], -1))
 
         if 0:
+            from pnet.bernoulli_mm import BernoulliMM
             mm = BernoulliMM(n_components=self._num_parts, 
                              n_iter=20, 
                              tol=1e-15,
