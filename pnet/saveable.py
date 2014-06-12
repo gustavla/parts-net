@@ -1,6 +1,9 @@
 from __future__ import absolute_import
-import numpy as np
 from .named_registry import NamedRegistry
+
+# Which backend (it needs to have load and save)
+#import numpy as backend 
+import amitgroup.io as backend
 
 class Saveable(object):
     @classmethod
@@ -8,11 +11,11 @@ class Saveable(object):
         if path is None:
             return cls.load_from_dict({})
         else:
-            d = np.load(path).flat[0]
+            d = backend.load(path)#.flat[0]
             return cls.load_from_dict(d)
         
     def save(self, path):
-        np.save(path, self.save_to_dict())
+        backend.save(path, self.save_to_dict())
 
     @classmethod
     def load_from_dict(cls, d):
@@ -28,7 +31,7 @@ class SaveableRegistry(Saveable, NamedRegistry):
         if path is None:
             return cls.load_from_dict({})
         else:
-            d = np.load(path).flat[0]
+            d = backend.load(path)#.flat[0]
             # Check class type
             class_name = d.get('name')
             if class_name is not None:
@@ -39,5 +42,6 @@ class SaveableRegistry(Saveable, NamedRegistry):
     def save(self, path):
         d = self.save_to_dict()
         d['name'] = self.name 
-        np.save(path, d)
+        import pdb; pdb.set_trace()
+        backend.save(path, d)
      
