@@ -10,12 +10,6 @@ import pnet.matrix
 import random
 import sys
 
-if sys.version_info[0] == 2:
-    def next(iterator):
-        return iterator.next()
-
-# TEMP
-
 def _get_patches(self, X):
     assert X.ndim == 4
 

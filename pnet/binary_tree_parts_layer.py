@@ -1,9 +1,5 @@
 from __future__ import division, print_function, absolute_import 
 
-# TODO: Temp
-import matplotlib as mpl
-mpl.use('Agg')
-
 from scipy.special import logit
 import numpy as np
 import itertools as itr
@@ -136,7 +132,7 @@ class BinaryTreePartsLayer(Layer):
                                  #params='m',
                                  min_prob=min_prob)
                 mm.fit(x[:self._settings.get('traing_limit')])
-                logprob, resp = mm.eval(x)
+                logprob, resp = mm.score_samples(x)
                 comps = resp.argmax(-1)
 
                 w = logit(mm.means_[1]) - logit(mm.means_[0])
@@ -234,7 +230,7 @@ class BinaryTreePartsLayer(Layer):
             for sample in range(samples_per_image):
                 N = 200
                 for tries in range(N):
-                    x, y = i_iter.next()
+                    x, y = next(i_iter)
                     selection = [slice(x, x+self._part_shape[0]), slice(y, y+self._part_shape[1])]
 
                     patch = Xi[selection]

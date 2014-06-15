@@ -101,7 +101,7 @@ class HierarchicalPartsLayer(Layer):
                          #params='m',
                          min_prob=min_prob)
         mm.fit(flatpatches)
-        logprob, resp = mm.eval(flatpatches)
+        logprob, resp = mm.score_samples(flatpatches)
         comps = resp.argmax(-1)
 
         counts = np.bincount(comps, minlength=self._num_parts_per_layer)
@@ -182,7 +182,7 @@ class HierarchicalPartsLayer(Layer):
             mm.means_ = all_parts
             mm.weights_ = counts / counts.sum()
             mm.fit(flatpatches)
-            logprob, resp = mm.eval(flatpatches)
+            logprob, resp = mm.score_samples(flatpatches)
             comps = resp.argmax(-1)
 
             #for d in range(self._depth):
@@ -278,7 +278,7 @@ class HierarchicalPartsLayer(Layer):
             for sample in range(samples_per_image):
                 N = 200
                 for tries in range(N):
-                    x, y = i_iter.next()
+                    x, y = next(i_iter)
                     selection = [slice(x, x+self._part_shape[0]), slice(y, y+self._part_shape[1])]
 
                     patch = Xi[selection]

@@ -42,6 +42,5 @@ class SaveableRegistry(Saveable, NamedRegistry):
     def save(self, path):
         d = self.save_to_dict()
         d['name'] = self.name 
-        import pdb; pdb.set_trace()
         backend.save(path, d)
      

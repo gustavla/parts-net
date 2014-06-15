@@ -15,7 +15,7 @@ def test(ims, labels, net):
     yhat = net.classify(ims)
     return yhat == labels
 
-print("0")
+print("0 pid", os.getpid())
 
 if pnet.parallel.main(__name__): 
     ag.set_verbose(True)
@@ -58,7 +58,7 @@ if pnet.parallel.main(__name__):
             layers = [
                 pnet.OrientedPartsLayer(numParts, num_orientations, (part_size, part_size), settings=dict(outer_frame=2, 
                                                           em_seed=training_seed,
-                                                          n_iter=15,
+                                                          n_iter=5,
                                                           n_init=1,
                                                           threshold=2, 
                                                           #samples_per_image=20, 

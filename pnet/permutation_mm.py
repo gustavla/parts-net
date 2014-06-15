@@ -140,7 +140,7 @@ class PermutationMM(BaseEstimator):
         max_log_prob = -np.inf
 
         for trial in range(self.n_init):
-            pi = np.ones((K, P)) / (K * P)
+            self.weights_ = np.ones((K, P)) / (K * P)
 
             # Initialize by picking K components at random.
             repr_samples = X[self.random_state.choice(N, K, replace=False)]
@@ -148,13 +148,10 @@ class PermutationMM(BaseEstimator):
 
             #self.q = np.empty((N, K, P))
             loglikelihoods = []
-            converged = False
+            self.converged_ = False
             for loop in range(self.n_iter):
                 start = time.clock()
                 
-                self.weights_ = pi
-                self.means_ = theta
-
                 # E-step
                 logprob, log_resp = self.score_block_samples(X)
 
@@ -185,19 +182,17 @@ class PermutationMM(BaseEstimator):
                                                                                                                  llh=loglikelihoods[-1]))
 
                 if trial > 0 and abs(loglikelihoods[-1] - loglikelihoods[-2])/abs(loglikelihoods[-2]) < self.thresh:
-                    converged = True
+                    self.converged_ = True
                     break
 
 
             if loglikelihoods[-1] > max_log_prob: 
-                ag.info("Updated best log likelihood to {0}".format(loglikelihoods[-1])
-                max_log_prob = loglikelihood[-1]
+                ag.info("Updated best log likelihood to {0}".format(loglikelihoods[-1]))
+                max_log_prob = loglikelihoods[-1]
                 best_params = {'weights': self.weights_,
                                'means' : self.means_,
                                'converged': self.converged_}
 
-
-        best_i = np.argmax(all_loglikelihoods)
 
         self.weights_ = best_params['weights']
         self.means_ = best_params['means']

@@ -5,6 +5,7 @@ import numpy as np
 import itertools as itr
 import amitgroup as ag
 from pnet.layer import Layer
+import sys
 import pnet
 
 @Layer.register('gaussian-parts-layer')
@@ -37,7 +38,15 @@ class GaussianPartsLayer(Layer):
         feature_map = np.zeros((X.shape[0],) + dim, dtype=np.int64)
 
         for i, j in itr.product(range(dim[0]), range(dim[1])):
-            feature_map[:,i,j] = self._clf.predict(X[:,i:i+ps[0],j:j+ps[1]].reshape((X.shape[0], -1)))
+            Xij_patch = X[:,i:i+ps[0],j:j+ps[1]]
+            flatXij_patch = Xij_patch.reshape((X.shape[0], -1))
+            feature_map[:,i,j] = self._clf.predict(flatXij_patch)
+
+            #import pdb; pdb.set_trace()
+
+
+            not_ok = (flatXij_patch.std(-1) <= 0.2)
+            feature_map[not_ok,i,j] = -1
 
         return (feature_map[...,np.newaxis], self._num_parts)
 
@@ -60,6 +69,13 @@ class GaussianPartsLayer(Layer):
         kp_patches = patches.reshape((patches.shape[0], -1, patches.shape[-1]))
 
         flatpatches = kp_patches.reshape((kp_patches.shape[0], -1))
+
+        # Remove the ones with too little activity
+
+        #ok = flatpatches.std(-1) > 0.2
+
+        #flatpatches = flatpatches[ok]
+
 
         from sklearn.mixture import GMM
         self._clf = GMM(n_components=self._num_parts,
@@ -113,12 +129,12 @@ class GaussianPartsLayer(Layer):
             for sample in range(samples_per_image):
                 N = 200
                 for tries in range(N):
-                    x, y = i_iter.next()
+                    x, y = next(i_iter)
                     selection = [slice(x, x+self._part_shape[0]), slice(y, y+self._part_shape[1])]
 
                     patch = Xi[selection]
 
-                    if True: 
+                    if patch.std() > 0.2: 
                         patches.append(patch)
                         if len(patches) >= self._settings.get('max_samples', np.inf):
                             return np.asarray(patches)
@@ -147,7 +163,7 @@ class GaussianPartsLayer(Layer):
         for n in range(self._num_parts):
             grid.set_image(mu[n], n//side, n%side, vmin=0, vmax=1, cmap=cm.gray)
 
-        grid.save(vz.generate_filename(ext='png'))
+        grid.save(vz.generate_filename(ext='png'), scale=5)
 
     def save_to_dict(self):
         d = {}

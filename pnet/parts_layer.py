@@ -95,24 +95,24 @@ class PartsLayer(Layer):
 
         flatpatches = kp_patches.reshape((kp_patches.shape[0], -1))
 
-        if 0:
+        if 1:
             from pnet.bernoulli_mm import BernoulliMM
             mm = BernoulliMM(n_components=self._num_parts, 
-                             n_iter=20, 
-                             tol=1e-15,
-                             n_init=2, 
+                             n_iter=15, 
+                             tol=1e-3,
+                             n_init=1, 
                              random_state=self._settings.get('em_seed', 0), 
                              min_prob=min_prob, 
-                             verbose=False)
+                             verbose=True)
             mm.fit(flatpatches)
 
             means = mm.means_
             weights = mm.weights_
             if support_mask is not None:
-                self._parts = 0.5 * np.ones((self._num_parts,) + patches.shape[1:])
-                self._parts[:,support_mask] = means.reshape((self._parts.shape[0], -1, self._parts.shape[-1]))
+                means = 0.5 * np.ones((self._num_parts,) + patches.shape[1:])
+                means[:,support_mask] = mm.means_.reshape((self._parts.shape[0], -1, self._parts.shape[-1]))
             else:
-                self._parts = means.reshape((self._num_parts,)+patches.shape[1:])
+                means = mm.means_.reshape((self._num_parts,)+patches.shape[1:])
         else:
             from pnet.bernoulli import em      
             ret = em(flatpatches, self._num_parts, 20,
@@ -122,8 +122,7 @@ class PartsLayer(Layer):
             means = ret[1].reshape((self._num_parts,) + patches.shape[1:])
             weights = np.arange(self._num_parts)
 
-            self._parts = means
-
+        self._parts = means
 
 
         Hall = (means * np.log(means) + (1 - means) * np.log(1 - means))
@@ -205,7 +204,7 @@ class PartsLayer(Layer):
             for sample in range(samples_per_image):
                 N = 200
                 for tries in range(N):
-                    x, y = i_iter.next()
+                    x, y = next(i_iter)
                     selection = [slice(x, x+self._part_shape[0]), slice(y, y+self._part_shape[1])]
 
                     patch = Xi[selection]

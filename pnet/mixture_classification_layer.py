@@ -62,7 +62,8 @@ class MixtureClassificationLayer(SupervisedLayer):
                                  n_init=1, 
                                  random_state=self._settings.get('seed', 0), 
                                  min_prob=self._min_prob,
-                                 blocksize=200)
+                                 blocksize=200,
+                                 verbose=True)
                 mm.fit(Xk)
 
 

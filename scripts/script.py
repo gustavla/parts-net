@@ -6,7 +6,7 @@ import amitgroup as ag
 import itertools as itr
 import sys
 import os
-
+import gv
 
 import pnet
 import time
@@ -64,7 +64,7 @@ if pnet.parallel.main(__name__):
 
     ims2k = data[10000:12000]
     label2k = np.array(label[10000:12000]).astype(np.int_)
-    digits = range(10)
+    digits = list(range(10))
     if 0:
         sup_ims = []
         sup_labels = []
@@ -117,12 +117,13 @@ if pnet.parallel.main(__name__):
 
                 clnet = pnet.PartsNet([net] + layers)
                         
-                start1 = time.time()
-                print('Training supervised...')
-                print(sup_ims.shape)
-                clnet.train(sup_ims, sup_labels)
-                print('Done.')
-                end1 = time.time()
+                with gv.Timer('Training supervised'):
+                    start1 = time.time()
+                    print('Training supervised...')
+                    print(sup_ims.shape)
+                    clnet.train(sup_ims, sup_labels)
+                    print('Done.')
+                    end1 = time.time()
 
                 #clnet.save('mod-{classifier}-ori{orientations}-rs{rotspread}-cl{n_classes}-ps{part_shape}.npy'.format(classifier=classifier, rotspread=rotspread, n_classes=n_classes, orientations=n_orientations, part_shape=part_shape))
                 if args.output is not None:
@@ -145,15 +146,16 @@ if pnet.parallel.main(__name__):
                 def format_error_rate(pr):
                     return "{:.2f}%".format(100*(1-pr))
 
-                start2 = time.time()
-                args = (tup+(clnet,) for tup in itr.izip(ims_batches, labels_batches))
-                for i, res in enumerate(pnet.parallel.starmap(test, args)):
-                    corrects += res.sum()
-                    total += res.size
-                    pr = corrects / total
-                end2 = time.time()
+                with gv.Timer('Classification'):
+                    start2 = time.time()
+                    args = (tup+(clnet,) for tup in zip(ims_batches, labels_batches))
+                    for i, res in enumerate(pnet.parallel.starmap(test, args)):
+                        corrects += res.sum()
+                        total += res.size
+                        pr = corrects / total
+                    end2 = time.time()
 
-                error_rate = 1.0 - pr 
+                    error_rate = 1.0 - pr 
 
                 error_rates.append(error_rate)
                 print('Classifier:', classifier, 'Components:', n_classes, 'Rotational spreading:', rotspread)

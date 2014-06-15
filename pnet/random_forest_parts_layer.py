@@ -93,7 +93,7 @@ class RandomForestPartsLayer(PartsLayer):
                          min_prob=min_prob, 
                          verbose=False)
         mm.fit(flatpatches)
-        logprob, resp = mm.eval(flatpatches)
+        logprob, resp = mm.score_samples(flatpatches)
         comps = resp.argmax(-1)
 
 
