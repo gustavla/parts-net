@@ -48,10 +48,10 @@ if pnet.parallel.main(__name__):
     else:
         classifier_names = [args.classifier]
 
-    data = np.load(args.data)
-    label = np.load(args.label)
-    test_data0 = np.load(args.test_data)
-    test_label0 = np.load(args.test_label)
+    data = ag.io.load(args.data)
+    label = ag.io.load(args.label)
+    test_data0 = ag.io.load(args.test_data)
+    test_label0 = ag.io.load(args.test_label)
     seed = args.seed
 
     net = pnet.PartsNet.load(args.model)

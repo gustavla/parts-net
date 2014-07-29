@@ -1,4 +1,4 @@
-from __future__ import division, print_function, absolute_import 
+from __future__ import division, print_function, absolute_import
 
 #from pnet.vzlog import default as vz
 import numpy as np
@@ -15,24 +15,35 @@ def test(ims, labels, net):
     yhat = net.classify(ims)
     return yhat == labels
 
-if pnet.parallel.main(__name__): 
+if pnet.parallel.main(__name__):
     ag.set_verbose(True)
     print("1")
     import argparse
     parser = argparse.ArgumentParser()
-    #parser.add_argument('seed', metavar='<seed>', type=int, help='Random seed')
+    parser.add_argument('--seed', metavar='<seed>', default=0, type=int,
+                        help='Random seed')
     #parser.add_argument('param', metavar='<param>', type=string)
-    
-    parser.add_argument('model',metavar='<model file>',type=argparse.FileType('rb'), help='Filename of model file')
-    parser.add_argument('data',metavar='<mnist data file>',type=argparse.FileType('rb'),help='Filename of data file')
-    parser.add_argument('label',metavar='<mnist data file>',type=argparse.FileType('rb'),help='Filename of data file')
-    parser.add_argument('classifier',metavar='<classifier>', type=str, choices=('mixture', 'svm-mixture', 'rot-mixture'), help='num Of Class Model')
-    parser.add_argument('numOfClassModel',metavar='<numOfClassModel>', type=str, help='num Of Class Model')
+
+    parser.add_argument('model', metavar='<model file>',
+                        type=argparse.FileType('rb'),
+                        help='Filename of model file')
+    parser.add_argument('data', metavar='<mnist data file>',
+                        type=argparse.FileType('rb'),
+                        help='Filename of data file')
+    parser.add_argument('label', metavar='<mnist data file>',
+                        type=argparse.FileType('rb'),
+                        help='Filename of data file')
+    parser.add_argument('classifier', metavar='<classifier>', type=str,
+                        choices=('mixture', 'svm-mixture', 'rot-mixture'),
+                        help='num Of Class Model')
+    parser.add_argument('numOfClassModel', metavar='<numOfClassModel>',
+                        type=str, help='num Of Class Model')
     parser.add_argument('--output', '-o', type=str)
 
     args = parser.parse_args()
 
     numOfClassModel = args.numOfClassModel
+    seed = args.seed
 
     if numOfClassModel == 'many':
         num_class_models = [1, 2, 5, 10, 20]
@@ -44,12 +55,12 @@ if pnet.parallel.main(__name__):
     else:
         classifier_names = [args.classifier]
 
-    data = np.load(args.data)
-    label = np.load(args.label)
+    data = ag.io.load(args.data)
+    label = ag.io.load(args.label)
 
     net = pnet.PartsNet.load(args.model)
 
-    if net.layers[0].name == 'oriented-parts-layer':
+    if net.layers[0].name in ('oriented-parts-layer', 'oriented-gaussian-parts-layer'):
         part_shape = net.layers[0].part_shape
     else:
         part_shape = net.layers[1].part_shape
@@ -77,8 +88,8 @@ if pnet.parallel.main(__name__):
         sup_ims = np.concatenate(sup_ims, axis=0)
         sup_labels = np.concatenate(sup_labels, axis=0)
     else:
-        sup_ims = ims10k 
-        sup_labels = label10k 
+        sup_ims = ims10k
+        sup_labels = label10k
 
     if net.layers[0].name == 'oriented-parts-layer':
         rotspreads = [0] # TODO, temporary
@@ -98,12 +109,12 @@ if pnet.parallel.main(__name__):
                 if classifier == 'mixture':
                     layers = [
                         pnet.PoolingLayer(shape=(4, 4), strides=(4, 4)),
-                        pnet.MixtureClassificationLayer(n_components=n_classes, min_prob=1e-5)
+                        pnet.MixtureClassificationLayer(n_components=n_classes, min_prob=1e-5, settings=dict(seed=seed))
                     ]
                 elif classifier == 'svm':
                     layers = [
                         pnet.PoolingLayer(shape=(4, 4), strides=(4, 4)),
-                        pnet.SVMClassificationLayer(C=None),
+                        pnet.SVMClassificationLayer(C=None, settings=dict(seed=seed)),
                     ]
                 elif classifier == 'rot-mixture':
                     n_orientations = 16
@@ -112,16 +123,17 @@ if pnet.parallel.main(__name__):
                                 shape=(4, 4),
                                 strides=(4, 4),
                                 rotation_spreading_radius=rotspread,
+                                seed=seed,
                             ))
                     ]
 
                 clnet = pnet.PartsNet([net] + layers)
-                        
+
                 with gv.Timer('Training supervised'):
                     start1 = time.time()
                     print('Training supervised...')
                     print(sup_ims.shape)
-                    clnet.train(sup_ims, sup_labels)
+                    clnet.train(lambda x: x, sup_ims, y=sup_labels)
                     print('Done.')
                     end1 = time.time()
 
@@ -140,26 +152,26 @@ if pnet.parallel.main(__name__):
                 test_labels = label2k
 
 
-                ims_batches = np.array_split(test_ims, 100)
-                labels_batches = np.array_split(test_labels, 100)
+                ims_batches = np.array_split(test_ims, 200)
+                labels_batches = np.array_split(test_labels, 200)
 
                 def format_error_rate(pr):
                     return "{:.2f}%".format(100*(1-pr))
 
                 with gv.Timer('Classification'):
                     start2 = time.time()
-                    args = (tup+(clnet,) for tup in zip(ims_batches, labels_batches))
-                    for i, res in enumerate(pnet.parallel.starmap(test, args)):
+                    params = (tup+(clnet,) for tup in zip(ims_batches, labels_batches))
+                    for i, res in enumerate(pnet.parallel.starmap(test, params)):
                         corrects += res.sum()
                         total += res.size
                         pr = corrects / total
                     end2 = time.time()
 
-                    error_rate = 1.0 - pr 
+                    error_rate = 1.0 - pr
 
                 error_rates.append(error_rate)
                 print('Classifier:', classifier, 'Components:', n_classes, 'Rotational spreading:', rotspread)
                 print('error rate', error_rate * 100)
 
 
-
+    print('Error rates', error_rates)

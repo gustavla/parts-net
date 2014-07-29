@@ -1,8 +1,8 @@
-from __future__ import division, print_function, absolute_import 
+from __future__ import division, print_function, absolute_import
 
 import numpy as np
-import pnet
 from pnet.layer import Layer
+
 
 @Layer.register('feature-combiner-layer')
 class FeatureCombinerLayer(Layer):
@@ -18,20 +18,22 @@ class FeatureCombinerLayer(Layer):
     def trained(self):
         return self._trained
 
-    def train(self, X, Y=None):
+    def train(self, phi, data, y=None):
+        X = phi(data)
         for layer in self._layers:
-            layer.train(X, Y)
+            layer.train(X, y)
 
-        self._trained = True 
+        self._trained = True
 
-    def extract(self, X):
+    def extract(self, phi, data):
+        X = phi(data)
         features = []
         for layer in self._layers:
             feat = layer.extract(X)
             features.append(feat)
 
             # This only works if it's outputting 4D features
-            assert  feat.ndim == 4
+            assert feat.ndim == 4
 
         return np.concatenate(features, axis=3)
 
@@ -46,10 +48,10 @@ class FeatureCombinerLayer(Layer):
 
     @classmethod
     def load_from_dict(cls, d):
-        layers = []
-        for layer_dict in d['layers']:
-            layer = Layer.getclass(layer_dict['name']).load_from_dict(layer_dict)
-            layers.append(layer)
+        layers = [
+            Layer.getclass(layer_dict['name']).load_from_dict(layer_dict)
+            for layer_dict in d['layers']
+        ]
         obj = cls(layers)
         return obj
 

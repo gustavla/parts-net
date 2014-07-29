@@ -1,21 +1,19 @@
 from __future__ import division, print_function, absolute_import
 
-import matplotlib as mpl
-mpl.use('Agg')
 import pylab as plt
 import os
+import sys
 from copy import copy
 
 __all__ = ['VzLog', 'default']
 
-DEFAULT_NAME = os.environ.get('VZ_DEFAULT_NAME', 'vzlog')
-_g_initialized_vz_names = set()
+_DEFAULT_NAME = os.environ.get('VZ_DEFAULT_NAME', 'vzlog')
 
 _HEADER = """
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Log</title>
+    <title>{{title}}</title>
     <style>
     html {
         background: white;
@@ -40,29 +38,22 @@ _FOOTER = """
 </html>
 """
 
-class VzLog(object):
+class VzLog:
     def __init__(self, name):
         self.name = name
         self._file_rights = os.environ.get('VZ_FILE_RIGHTS')
-        #self._filenames = set()
         self._filename_stack = set() 
         if self._file_rights is not None:
             self._file_rights = int(self._file_rights, 8)
         self._open = False
-        #self._has_footer = False
 
-        self.initialize()
+        self.clear()
 
         self._counter = 0
-
+        
         # Make flush unnecessary to call manually
         import atexit
         atexit.register(self.flush)
-
-    #def __del__(self):
-        #if self._open:
-            #self.flush()
-        #pass
 
     def register_filename(self, fn):
         self._filename_stack.add(fn)
@@ -77,18 +68,18 @@ class VzLog(object):
                 self.set_rights(fn)
                 self._filename_stack.remove(fn)
 
-    def initialize(self):
+    def clear(self):
         """
-        Initialize folder for logging.
+        Prepares a folder for logging. This also clears any previous output and
+        can thus be used for instance during an interactive session when
+        wanting a clean slate.
         """
-        global _g_initialized_vz_names
-
-        # Construct path. Note that if 
+        # Construct path.
         root = self._get_root()
         dot_vz_fn = os.path.join(root, '.vz')
         
         # First, remove previous folder. Only do this if it looks like
-        # it was previously created with vz. Otherwise, through an error
+        # it was previously created with vz. Otherwise, throw an error.
         if os.path.isdir(root):
             # Check if it has a '.vz' file
             if os.path.exists(dot_vz_fn):
@@ -96,20 +87,22 @@ class VzLog(object):
                 import shutil
                 shutil.rmtree(root)
             else:
-                raise Exception("Folder does not seem to be a vz folder. Aborting.") 
+                raise Exception("Folder does not seem to be a vz folder.") 
 
         self._open = True
 
         # Create folder
         os.mkdir(root)
 
-        self._output_html(_HEADER)
+        self._output_html(_HEADER.replace('{{title}}', self.name))
 
         with open(dot_vz_fn, 'w') as f:
             print('ok', file=f)
 
     def _get_root(self):
-        return os.path.join(os.path.expandvars(os.path.expanduser(os.environ.get('VZ_DIR', ''))), self.name)
+        vz_dir = os.environ.get('VZ_DIR', '')
+        vz_dir = os.path.expandvars(os.path.expanduser(vz_dir))
+        return os.path.join(vz_dir, self.name)
 
     def _output_surrounding_html(self, prefix, suffix, *args):
         self._output_html(*((prefix,) + args + (suffix,)))
@@ -132,12 +125,32 @@ class VzLog(object):
         #if self._filename_stack:
             #self.log("WARNING: Could not flush these files: {}".format(self._filename_stack))
         if self._filename_stack:
-            print("WARNING: Could not flush these files: {}".format(self._filename_stack))
+            print("VZLOG WARNING: Could not flush these files:",
+                  self._filename_stack, file=sys.stderr)
 
         self._open = False
 
-    def generate_filename(self, ext='png'):
-        #fn = '-'.join(title.lower().split()) + '.png'
+    def impath(self, ext='png'):
+        """
+        This generates a path to an image file, outputs the image and
+        returns the path.
+
+        Examples
+        --------
+        
+        >>> import amitgroup as ag
+        >>> from pnet.vzlog import default as vz
+
+        We can output an image by saving the file: 
+
+        >>> ag.image.save(vz.impath(ext='png'), im)
+
+        Or with matplotlib using a vector format:
+
+        >>> plt.figure()
+        >>> plt.plot([1,3,2,3,1])
+        >>> plt.savefig(vz.impath(ext='svg'))
+        """
         fn = 'plot-{:04}.'.format(self._counter) + ext
         self._counter += 1
         
@@ -162,9 +175,12 @@ class VzLog(object):
     def text(self, *args):
         self._output_surrounding_html('<p>', '</p>', *args)
 
+    def output(self, obj):
+        if hasattr(obj, '_vzlog_output_'):
+            obj._vzlog_output_(self) 
+        else:
+            self.log(obj)
 
+# The default singleton VzLog
+default = VzLog(_DEFAULT_NAME)
 
-
-default = VzLog(DEFAULT_NAME)
-
-#def savefig(name

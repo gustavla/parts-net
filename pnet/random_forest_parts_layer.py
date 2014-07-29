@@ -1,4 +1,4 @@
-from __future__ import division, print_function, absolute_import 
+from __future__ import division, print_function, absolute_import
 
 from scipy.special import logit
 import numpy as np
@@ -20,8 +20,9 @@ class RandomForestPartsLayer(PartsLayer):
     def num_parts(self):
         return self._num_parts
 
-    def extract(self, X):
-        
+    def extract(self, phi, data):
+        X = phi(data)
+
         dims = (X.shape[1]-self._part_shape[0]+1, X.shape[2]-self._part_shape[1]+1)
 
         feats = -np.ones((X.shape[0],) + dims + (1,), dtype=np.int64)
@@ -45,10 +46,11 @@ class RandomForestPartsLayer(PartsLayer):
 
     @property
     def trained(self):
-        return self._random_forest is not None 
+        return self._random_forest is not None
 
-    def train(self, X, Y=None):
-        assert Y is None
+    def train(self, phi, data, y=None):
+        assert y is None
+        X = phi(data)
         patches = self._get_patches(X)
         comps = self.train_from_samples(patches)
 
@@ -56,7 +58,7 @@ class RandomForestPartsLayer(PartsLayer):
         from sklearn.ensemble import RandomForestClassifier
 
         patches = patches.reshape((patches.shape[0], -1))
-         
+
         clf = RandomForestClassifier(n_estimators=self._settings.get('trees', 10), max_depth=self._settings.get('max_depth', 10))
         import gv
         with gv.Timer('Forest training'):
@@ -85,26 +87,29 @@ class RandomForestPartsLayer(PartsLayer):
 
         flatpatches = kp_patches.reshape((kp_patches.shape[0], -1))
 
-        mm = BernoulliMM(n_components=self._num_parts, 
-                         n_iter=10, 
+        mm = BernoulliMM(n_components=self._num_parts,
+                         n_iter=10,
                          tol=1e-15,
-                         n_init=1, 
-                         random_state=self._settings.get('em_seed', 0), 
-                         min_prob=min_prob, 
+                         n_init=1,
+                         random_state=self._settings.get('em_seed', 0),
+                         min_prob=min_prob,
                          verbose=False)
         mm.fit(flatpatches)
         logprob, resp = mm.score_samples(flatpatches)
         comps = resp.argmax(-1)
 
 
-        Hall = (mm.means_ * np.log(mm.means_) + (1 - mm.means_) * np.log(1 - mm.means_))
+        Hall = (mm.means_ * np.log(mm.means_) +
+                (1 - mm.means_) * np.log(1 - mm.means_))
         H = -Hall.mean(-1)
 
         if support_mask is not None:
             self._parts = 0.5 * np.ones((self._num_parts,) + patches.shape[1:])
-            self._parts[:,support_mask] = mm.means_.reshape((self._parts.shape[0], -1, self._parts.shape[-1]))
+            sh = (self._parts.shape[0], -1, self._parts.shape[-1])
+            self._parts[:,support_mask] = mm.means_.reshape(sh)
         else:
-            self._parts = mm.means_.reshape((self._num_parts,)+patches.shape[1:])
+            sh = (self._num_parts,) + patches.shape[1:]
+            self._parts = mm.means_.reshape(sh)
         self._weights = mm.weights_
 
         # Calculate entropy of parts

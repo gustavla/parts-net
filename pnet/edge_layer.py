@@ -2,13 +2,22 @@ from __future__ import division, print_function, absolute_import
 
 import amitgroup as ag
 from pnet.layer import Layer
+import pnet
 
 @Layer.register('edge-layer')
 class EdgeLayer(Layer):
     def __init__(self, **kwargs):
         self._edge_settings = kwargs 
 
-    def extract(self, X):
+    @property
+    def pos_matrix(self):
+        if self._edge_settings.get('preserve_size', True):
+            return pnet.matrix.identiy()
+        else:
+            return pnet.matrix.translation(-2, -2)
+
+    def extract(self, phi, data):
+        X = phi(data)
         if isinstance(X, list):
             return [ag.features.bedges(Xi, **self._edge_settings) for Xi in X]
         else:

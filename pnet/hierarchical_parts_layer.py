@@ -1,4 +1,4 @@
-from __future__ import division, print_function, absolute_import 
+from __future__ import division, print_function, absolute_import
 
 # TODO: Temp
 import matplotlib as mpl
@@ -40,12 +40,17 @@ class HierarchicalPartsLayer(Layer):
         self._parts = None
         self._weights = None
 
-    def extract(self, X):
+    @property
+    def pos_matrix(self):
+        return self.conv_pos_matrix(self._part_shape)
+
+    def extract(self, phi, data):
         assert self._parts is not None, "Must be trained before calling extract"
+        X = phi(data)
 
         th = self._settings['threshold']
         n_coded = self._settings.get('n_coded', 1)
-        
+
         support_mask = self._settings.get('support_mask')
         if support_mask is None:
             support_mask = np.ones(self._part_shape, dtype=np.bool)
@@ -53,20 +58,20 @@ class HierarchicalPartsLayer(Layer):
 
         if self._num_parts_per_layer == 2:
             from pnet.cyfuncs import code_index_map_binary_tree
-            feature_map = code_index_map_binary_tree(X, 
-                                                 self._w, 
+            feature_map = code_index_map_binary_tree(X,
+                                                 self._w,
                                                  self._constant_terms,
                                                  self._depth,
                                                  th,
-                                                 outer_frame=self._settings['outer_frame'], 
+                                                 outer_frame=self._settings['outer_frame'],
                                                  min_percentile=self._settings.get('min_percentile', 0.0))
         else:
             from pnet.cyfuncs import code_index_map_hierarchy
-            feature_map = code_index_map_hierarchy(X, 
-                                                 self._flathier, 
+            feature_map = code_index_map_hierarchy(X,
+                                                 self._flathier,
                                                  self._depth,
                                                  th,
-                                                 outer_frame=self._settings['outer_frame'], 
+                                                 outer_frame=self._settings['outer_frame'],
                                                  min_percentile=self._settings.get('min_percentile', 0.0))
 
         feature_map = feature_map[...,[-1]]
@@ -74,10 +79,11 @@ class HierarchicalPartsLayer(Layer):
         return (feature_map, self._num_parts)
     @property
     def trained(self):
-        return self._parts is not None 
+        return self._parts is not None
 
-    def train(self, X, Y=None):
-        assert Y is None
+    def train(self, phi, data, y=None):
+        assert y is None
+        X = phi(data)
         ag.info('Extracting patches')
         patches = self._get_patches(X)
         ag.info('Done extracting patches')
@@ -93,11 +99,11 @@ class HierarchicalPartsLayer(Layer):
             ## Put all of them in both
             #flatpatches.mean()
 
-        mm = BernoulliMM(n_components=self._num_parts_per_layer, 
-                         n_iter=20, 
+        mm = BernoulliMM(n_components=self._num_parts_per_layer,
+                         n_iter=20,
                          tol=1e-15,
-                         n_init=5, 
-                         random_state=self._settings.get('em_seed', 0), 
+                         n_init=5,
+                         random_state=self._settings.get('em_seed', 0),
                          #params='m',
                          min_prob=min_prob)
         mm.fit(flatpatches)
@@ -118,9 +124,9 @@ class HierarchicalPartsLayer(Layer):
                 mm.means_[m] = np.clip(hier_flatpatches[m].mean(0), min_prob, 1 - min_prob)
         else:
             hier_flatpatches = [flatpatches[comps == m] for m in range(self._num_parts_per_layer)]
-        
+
         #if depth == 0:
-            #print('counts', counts) 
+            #print('counts', counts)
         #print(depth, 'hier_flatpatches', map(np.shape, hier_flatpatches))
 
         all_parts = []
@@ -171,10 +177,10 @@ class HierarchicalPartsLayer(Layer):
             F = self._num_parts_per_layer ** self._depth
 
             mm = BernoulliMM(n_components=F,
-                             n_iter=20, 
+                             n_iter=20,
                              tol=1e-15,
-                             n_init=1, 
-                             random_state=100+self._settings.get('em_seed', 0), 
+                             n_init=1,
+                             random_state=100+self._settings.get('em_seed', 0),
                              init_params='',
                              #params='m',
                              min_prob=min_prob)
@@ -199,7 +205,7 @@ class HierarchicalPartsLayer(Layer):
 
                         #hier[d][j][k] = [flatpatches[comps == f].mean(0).reshape((-1,) + patches.shape[1:])
                         #else:
-                            #hier[d][j][k] += 
+                            #hier[d][j][k] +=
 
 
             # Now, update the entire tree with these new results
@@ -220,45 +226,47 @@ class HierarchicalPartsLayer(Layer):
             print(all_parts.shape)
 
         self._parts = all_parts.reshape((self._num_parts,)+patches.shape[1:])
-        self._weights = all_weights 
+        self._weights = all_weights
         self._counts = counts
         #self._parts_hierarchy = parts_hierarchy
         self._hier = hier
-        self._flathier = np.asarray(sum(hier, [])) 
+        self._flathier = np.asarray(sum(hier, []))
 
         from scipy.special import logit
 
         if self._num_parts_per_layer == 2:
-            self._w = logit(self._flathier[:,1]) - logit(self._flathier[:,0]) 
+            self._w = logit(self._flathier[:,1]) - logit(self._flathier[:,0])
             self._constant_terms = np.apply_over_axes(np.sum, np.log(1 - self._flathier[:,1]) - np.log(1 - self._flathier[:,0]), [1, 2, 3])[:,0,0,0]
 
         if 0:
             # Train it again by initializing with this
-            mm = BernoulliMM(n_components=self._num_parts, 
-                             n_iter=20, 
+            mm = BernoulliMM(n_components=self._num_parts,
+                             n_iter=20,
                              tol=1e-15,
-                             n_init=1, 
+                             n_init=1,
                              init_params='w',
-                             random_state=self._settings.get('em_seed', 0), 
+                             random_state=self._settings.get('em_seed', 0),
                              min_prob=min_prob)
             mm.means_ = self._parts.reshape((self._num_parts, -1))
             mm.fit(flatpatches)
 
-            self._parts = mm.means_.reshape((self._num_parts,)+patches.shape[1:])
+            self._parts = mm.means_.reshape((self._num_parts,) + patches.shape[1:])
             self._weights = mm.weights_
 
-        Hall = (self._parts * np.log(self._parts) + (1 - self._parts) * np.log(1 - self._parts))
+        Hall = (self._parts * np.log(self._parts) + 
+               (1 - self._parts) * np.log(1 - self._parts))
         H = -np.apply_over_axes(np.mean, Hall, [1, 2, 3]).ravel()
         self._train_info['entropy'] = H
 
     def _get_patches(self, X):
         assert X.ndim == 4
 
-        samples_per_image = self._settings.get('samples_per_image', 20) 
+        samples_per_image = self._settings.get('samples_per_image', 20)
         fr = self._settings.get('outer_frame', 0)
         patches = []
 
-        rs = np.random.RandomState(self._settings.get('patch_extraction_seed', 0))
+        pe_seed = self._settings.get('patch_extraction_seed', 0)
+        rs = np.random.RandomState(pe_seed)
 
         th = self._settings['threshold']
         support_mask = self._settings.get('support_mask')
@@ -279,7 +287,8 @@ class HierarchicalPartsLayer(Layer):
                 N = 200
                 for tries in range(N):
                     x, y = next(i_iter)
-                    selection = [slice(x, x+self._part_shape[0]), slice(y, y+self._part_shape[1])]
+                    selection = [slice(x, x+self._part_shape[0]),
+                                 slice(y, y+self._part_shape[1])]
 
                     patch = Xi[selection]
                     #edgepatch_nospread = edges_nospread[selection]
@@ -290,9 +299,10 @@ class HierarchicalPartsLayer(Layer):
                     else:
                         tot = patch[fr:-fr,fr:-fr].sum()
 
-                    if th <= tot: 
+                    if th <= tot:
                         patches.append(patch)
-                        if len(patches) >= self._settings.get('max_samples', np.inf):
+                        max_samples = self._settings.get('max_samples', np.inf)
+                        if len(patches) >= max_samples:
                             return np.asarray(patches)
                         consecutive_failures = 0
                         break
@@ -304,11 +314,12 @@ class HierarchicalPartsLayer(Layer):
 
                     if consecutive_failures >= 10:
                         # Just give up.
-                        raise ValueError("FATAL ERROR: Threshold is probably too high.")
+                        raise ValueError("FATAL ERROR: "
+                                         "Threshold is probably too high.")
 
         return np.asarray(patches)
 
-    def infoplot(self, vz):
+    def _vzlog_output_(self, vz):
         from pylab import cm
         D = self._parts.shape[-1]
         N = self._num_parts
@@ -335,7 +346,7 @@ class HierarchicalPartsLayer(Layer):
             for j in range(D):
                 grid.set_image(self._parts[i,...,j], i, j, cmap=C, vmin=0, vmax=1)#cm.BrBG)
 
-        grid.save(vz.generate_filename(), scale=5)
+        grid.save(vz.impath(), scale=5)
 
         vz.title('HIERARCHY')
         base_offset = 0
@@ -348,7 +359,7 @@ class HierarchicalPartsLayer(Layer):
                 for j in range(D):
                     grid.set_image(self._w[base_offset+x,...,j], 0, j, cmap=cm.RdBu_r, vmin=-5, vmax=5)#cm.BrBG)
 
-                grid.save(vz.generate_filename(), scale=5)
+                grid.save(vz.impath(), scale=5)
 
             base_offset += self._num_parts_per_layer ** depth
 
@@ -359,20 +370,20 @@ class HierarchicalPartsLayer(Layer):
         plt.figure(figsize=(6, 3))
         plt.plot(self._counts, label='counts')
         plt.title('Counts')
-        plt.savefig(vz.generate_filename(ext='svg'))
+        plt.savefig(vz.impath(ext='svg'))
 
         import pylab as plt
         plt.figure(figsize=(6, 3))
         plt.plot(self._weights, label='weight')
         plt.title('Weights')
-        plt.savefig(vz.generate_filename(ext='svg'))
+        plt.savefig(vz.impath(ext='svg'))
 
-        vz.log('weights span', self._weights.min(), self._weights.max()) 
+        vz.log('weights span', self._weights.min(), self._weights.max())
 
         import pylab as plt
         plt.figure(figsize=(6, 3))
         plt.plot(self._train_info['entropy'])
-        plt.savefig(vz.generate_filename(ext='svg'))
+        plt.savefig(vz.impath(ext='svg'))
 
         vz.log('median entropy', np.median(self._train_info['entropy']))
 
@@ -384,14 +395,14 @@ class HierarchicalPartsLayer(Layer):
             #plt.hist(llhs.mean(0))
             plt.errorbar(np.arange(self._num_parts), llhs.mean(0), yerr=llhs.std(0), fmt='--o')
             plt.title('log likelihood means')
-            plt.savefig(vz.generate_filename(ext='svg'))
+            plt.savefig(vz.impath(ext='svg'))
 
-            parts = np.argmax(llhs, 1) 
+            parts = np.argmax(llhs, 1)
 
             means = np.zeros(self._num_parts)
             sigmas = np.zeros(self._num_parts)
             for f in range(self._num_parts):
-                llh0 = llhs[parts == f,f] 
+                llh0 = llhs[parts == f,f]
                 means[f] = llh0.mean()
                 sigmas[f] = llh0.std()
                 vz.log('llh', f, ':', means[f], sigmas[f])
@@ -408,13 +419,13 @@ class HierarchicalPartsLayer(Layer):
             plt.errorbar(np.arange(self._num_parts), anal_means, yerr=anal_sigmas, fmt='--o')
             #plt.plot(np.arange(self._num_parts), anal_means)
             plt.title('coded log likelihood means')
-            plt.savefig(vz.generate_filename(ext='svg'))
+            plt.savefig(vz.impath(ext='svg'))
 
 
             plt.figure(figsize=(6, 3))
             plt.hist(llhs.ravel(), 50)
             plt.title('Log likelihood distribution')
-            plt.savefig(vz.generate_filename(ext='svg'))
+            plt.savefig(vz.impath(ext='svg'))
 
 
     def save_to_dict(self):

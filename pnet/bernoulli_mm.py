@@ -190,8 +190,6 @@ class BernoulliMM(BaseEstimator):
             logprob = np.zeros(X.shape[0],dtype=self.float_type)
             responsibilities = np.zeros((X.shape[0],self.n_components),dtype=self.float_type)
             block_id = 0
-            if self.verbose:
-                print("Running block multiplication")
 
             for block_id in range(0,X.shape[0],self.blocksize):
                 blockend = min(X.shape[0],block_id+self.blocksize)
@@ -323,6 +321,9 @@ class BernoulliMM(BaseEstimator):
         if X.ndim == 1:
             X = X[:, np.newaxis]
 
+        if self.verbose:
+            print('Starting EM with {} samples, {} dimensions and {} classes'.format(X.shape[0], X.shape[1], self.n_components))
+
         data_shape = X.shape[1:]
         # flatten data to just be binary vectors
         data_length = np.prod(data_shape)
@@ -348,13 +349,19 @@ class BernoulliMM(BaseEstimator):
             if 'm' in self.init_params or not hasattr(self,'means_'):
                 if self.verbose:
                     print("Initializing means")
-                indices = np.arange(X.shape[0])
-                random_state.shuffle(indices)
-                self.means_ = np.array(tuple(
-                    np.clip(X[indices[i::self.n_components]].mean(0),
-                            self.min_prob,
-                            1-self.min_prob)
-                    for i in range(self.n_components)))
+
+                if 0:
+                    indices = np.arange(X.shape[0])
+                    random_state.shuffle(indices)
+                    self.means_ = np.array(tuple(
+                        np.clip(X[indices[i::self.n_components]].mean(0),
+                                self.min_prob,
+                                1-self.min_prob)
+                        for i in range(self.n_components)))
+
+                repr_samples = X[random_state.choice(X.shape[0], self.n_components, replace=False)]
+                #self.means_ = repr_samples.clip(self.min_prob, 1 - self.min_prob)
+                self.means_ = repr_samples.clip(0.2, 0.8)
 
             self.log_odds_, self.log_inv_mean_sums_ = _compute_log_odds_inv_means_sums(self.means_)
 
@@ -430,9 +437,6 @@ class BernoulliMM(BaseEstimator):
 
         if self.blocksize > 0:
             weighted_X_sum=np.zeros((weights.shape[0],X.shape[1]),dtype=self.float_type)
-
-            if self.verbose:
-                print("Running block multiplication for mstep")
 
             for blockstart in range(0,X.shape[0],self.blocksize):
                 blockend=min(X.shape[0],blockstart+self.blocksize)

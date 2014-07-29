@@ -1,4 +1,4 @@
-from __future__ import division, print_function, absolute_import 
+from __future__ import division, print_function, absolute_import
 
 from scipy.special import logit
 import numpy as np
@@ -19,7 +19,7 @@ if 0:
 class BinaryTreePartsLayer(Layer):
     def __init__(self, max_depth, part_shape, settings={}):
         #, outer_frame=1, threshold=1):
-        self._num_parts_per_layer = 2 
+        self._num_parts_per_layer = 2
         self._part_shape = part_shape
         self._max_depth = max_depth
         #self._outer_frame = outer_frame
@@ -40,16 +40,21 @@ class BinaryTreePartsLayer(Layer):
     def num_parts(self):
         return self._num_parts
 
-    def extract(self, X):
-        assert self.trained 
+    @property
+    def pos_matrix(self):
+        return self.conv_pos_matrix(self._part_shape)
+
+    def extract(self, phi, data):
+        X = phi(data)
+        assert self.trained
 
         th = self._settings['threshold']
-        
+
         if self._keypoints is not None:
             from pnet.cyfuncs import code_index_map_binary_tree_keypoints
-            feature_map = code_index_map_binary_tree_keypoints(X, 
+            feature_map = code_index_map_binary_tree_keypoints(X,
                                                          self._tree,
-                                                         self._w, 
+                                                         self._w,
                                                          self._keypoint_constant_terms,
                                                          self._keypoints,
                                                          self._num_keypoints,
@@ -59,9 +64,9 @@ class BinaryTreePartsLayer(Layer):
         else:
             from pnet.cyfuncs import code_index_map_binary_tree_new
 
-            feature_map = code_index_map_binary_tree_new(X, 
+            feature_map = code_index_map_binary_tree_new(X,
                                                          self._tree,
-                                                         self._w, 
+                                                         self._w,
                                                          self._constant_terms,
                                                          self._num_parts,
                                                          th,
@@ -74,8 +79,9 @@ class BinaryTreePartsLayer(Layer):
     def trained(self):
         return self._w is not None
 
-    def train(self, X, Y=None):
-        assert Y is None
+    def train(self, phi, data, y=None):
+        assert y is None
+        X = phi(data)
         ag.info('Extracting patches')
         patches = self._get_patches(X)
         ag.info('Done extracting patches')
@@ -102,7 +108,7 @@ class BinaryTreePartsLayer(Layer):
 
         s = 0
         cur_part_id = 0
-        
+
         q.insert(0, (cur_pos, 0, flatpatches))
         s += 1
         #cur_pos += 1
@@ -124,11 +130,11 @@ class BinaryTreePartsLayer(Layer):
                 cur_part_id += 1
 
             else:
-                mm = BernoulliMM(n_components=self._num_parts_per_layer, 
-                                 n_iter=self._settings.get('n_iter', 8), 
+                mm = BernoulliMM(n_components=self._num_parts_per_layer,
+                                 n_iter=self._settings.get('n_iter', 8),
                                  tol=1e-15,
                                  n_init=self._settings.get('n_init', 1), # May improve a bit to increase this
-                                 random_state=self._settings.get('em_seed', 0), 
+                                 random_state=self._settings.get('em_seed', 0),
                                  #params='m',
                                  min_prob=min_prob)
                 mm.fit(x[:self._settings.get('traing_limit')])
@@ -170,7 +176,7 @@ class BinaryTreePartsLayer(Layer):
         self._tree = tree
         self._num_parts = cur_part_id
         #print('num_parts', self._num_parts)
-        self._w = weights 
+        self._w = weights
         self._constant_terms = constant_terms
 
         supp_radius = self._settings.get('keypoint_suppress_radius', 0)
@@ -192,7 +198,7 @@ class BinaryTreePartsLayer(Layer):
 
                 for kp in kps:
                     kp_constant_terms[k] += constant_terms_unsummed[k,kp[0],kp[1],kp[2]]
- 
+
             self._keypoints = keypoints
             self._num_keypoints = num_keypoints
             self._keypoint_constant_terms = kp_constant_terms
@@ -206,7 +212,7 @@ class BinaryTreePartsLayer(Layer):
     def _get_patches(self, X):
         #assert X.ndim == 4
 
-        samples_per_image = self._settings.get('samples_per_image', 20) 
+        samples_per_image = self._settings.get('samples_per_image', 20)
         fr = self._settings.get('outer_frame', 0)
         patches = []
 
@@ -242,7 +248,7 @@ class BinaryTreePartsLayer(Layer):
                     else:
                         tot = patch[fr:-fr,fr:-fr].sum()
 
-                    if th <= tot: 
+                    if th <= tot:
                         patches.append(patch)
                         if len(patches) >= self._settings.get('max_samples', np.inf):
                             return np.asarray(patches)
@@ -260,7 +266,7 @@ class BinaryTreePartsLayer(Layer):
 
         return np.asarray(patches)
 
-    def infoplot(self, vz):
+    def _vzlog_output_(self, vz):
         from pylab import cm
         D = self._w.shape[-1]
         N = self._w.shape[0]
@@ -304,14 +310,14 @@ class BinaryTreePartsLayer(Layer):
                 nextup, ref = self._tree[v]
                 if nextup == -1:
                     graph.add_node(pydot.Node(v, fillcolor='red'))
-                    pass 
+                    pass
                 else:
                     graph.add_node(pydot.Node(v))
                     for c in range(2):
                         graph.add_edge(pydot.Edge(v, ref+c))
                         push(q, ref+c)
 
-            graph.write_svg(vz.generate_filename(ext='svg'))
+            graph.write_svg(vz.impath(ext='svg'))
 
         from matplotlib.colors import LinearSegmentedColormap
         C = LinearSegmentedColormap('BlueRed1', cdict1)
@@ -321,7 +327,7 @@ class BinaryTreePartsLayer(Layer):
             for j in range(D):
                 grid.set_image(self._w[i,...,j], i, j, cmap=C, vmin=-4, vmax=4)#cm.BrBG)
 
-        grid.save(vz.generate_filename(), scale=5)
+        grid.save(vz.impath(), scale=5)
 
         #vz.log('weights:', self._weights)
         #vz.log('entropy', self._train_info['entropy'])
@@ -340,20 +346,20 @@ class BinaryTreePartsLayer(Layer):
             plt.figure(figsize=(6, 3))
             plt.plot(self._counts, label='counts')
             plt.title('Counts')
-            plt.savefig(vz.generate_filename(ext='svg'))
+            plt.savefig(vz.impath(ext='svg'))
 
             import pylab as plt
             plt.figure(figsize=(6, 3))
             plt.plot(self._weights, label='weight')
             plt.title('Weights')
-            plt.savefig(vz.generate_filename(ext='svg'))
+            plt.savefig(vz.impath(ext='svg'))
 
-            vz.log('weights span', self._weights.min(), self._weights.max()) 
+            vz.log('weights span', self._weights.min(), self._weights.max())
 
             import pylab as plt
             plt.figure(figsize=(6, 3))
             plt.plot(self._train_info['entropy'])
-            plt.savefig(vz.generate_filename(ext='svg'))
+            plt.savefig(vz.impath(ext='svg'))
 
             vz.log('median entropy', np.median(self._train_info['entropy']))
 
@@ -365,14 +371,14 @@ class BinaryTreePartsLayer(Layer):
                 #plt.hist(llhs.mean(0))
                 plt.errorbar(np.arange(self._num_parts), llhs.mean(0), yerr=llhs.std(0), fmt='--o')
                 plt.title('log likelihood means')
-                plt.savefig(vz.generate_filename(ext='svg'))
+                plt.savefig(vz.impath(ext='svg'))
 
-                parts = np.argmax(llhs, 1) 
+                parts = np.argmax(llhs, 1)
 
                 means = np.zeros(self._num_parts)
                 sigmas = np.zeros(self._num_parts)
                 for f in range(self._num_parts):
-                    llh0 = llhs[parts == f,f] 
+                    llh0 = llhs[parts == f,f]
                     means[f] = llh0.mean()
                     sigmas[f] = llh0.std()
                     vz.log('llh', f, ':', means[f], sigmas[f])
@@ -389,19 +395,19 @@ class BinaryTreePartsLayer(Layer):
                 plt.errorbar(np.arange(self._num_parts), anal_means, yerr=anal_sigmas, fmt='--o')
                 #plt.plot(np.arange(self._num_parts), anal_means)
                 plt.title('coded log likelihood means')
-                plt.savefig(vz.generate_filename(ext='svg'))
+                plt.savefig(vz.impath(ext='svg'))
 
 
                 plt.figure(figsize=(6, 3))
                 plt.hist(llhs.ravel(), 50)
                 plt.title('Log likelihood distribution')
-                plt.savefig(vz.generate_filename(ext='svg'))
+                plt.savefig(vz.impath(ext='svg'))
 
 
     def save_to_dict(self):
         d = {}
-        d['num_parts_per_layer'] = self._num_parts_per_layer
         d['max_depth'] = self._max_depth
+        d['num_parts'] = self._num_parts
         d['part_shape'] = self._part_shape
         d['settings'] = self._settings
 
@@ -412,8 +418,9 @@ class BinaryTreePartsLayer(Layer):
 
     @classmethod
     def load_from_dict(cls, d):
-        obj = cls(d['num_parts_per_layer'], d['depth'], d['part_shape'], settings=d['settings'])
+        obj = cls(d['max_depth'], d['part_shape'], settings=d['settings'])
         obj._tree = d['tree']
+        obj._num_parts = d['num_parts']
         obj._w = d['w']
         obj._constant_terms = d['constant_terms']
         return obj
