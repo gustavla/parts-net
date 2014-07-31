@@ -737,8 +737,8 @@ def index_map_pooling_multi(np.ndarray[ndim=4, dtype=np.int64_t] part_index_map,
         int half_pooling0 = pooling0 // 2
         int half_pooling1 = pooling1 // 2
 
-    #offset = subsample_offset_shape((part_index_map.shape[1], part_index_map.shape[2]), strides)
-    offset = (half_pooling0, half_pooling1) #subsample_offset_shape((part_index_map.shape[1], part_index_map.shape[2]), strides)
+    offset = subsample_offset_shape((part_index_map.shape[1], part_index_map.shape[2]), strides)
+    #offset = (half_pooling0, half_pooling1) #subsample_offset_shape((part_index_map.shape[1], part_index_map.shape[2]), strides)
     cdef:
         int sample_size = part_index_map.shape[0]
         int part_index_dim0 = part_index_map.shape[1]
@@ -792,8 +792,8 @@ def index_map_sum_pooling_multi(np.ndarray[ndim=4, dtype=np.int64_t] part_index_
         int pooling1 = pooling_shape[1]
         int half_pooling0 = pooling0 // 2
         int half_pooling1 = pooling1 // 2
-    #offset = subsample_offset_shape((part_index_map.shape[1], part_index_map.shape[2]), strides)
-    offset = (half_pooling0, half_pooling1)
+    offset = subsample_offset_shape((part_index_map.shape[1], part_index_map.shape[2]), strides)
+    #offset = (half_pooling0, half_pooling1)
     cdef:
         int sample_size = part_index_map.shape[0]
         int part_index_dim0 = part_index_map.shape[1]
@@ -1045,7 +1045,6 @@ def code_index_map_general(np.ndarray[ndim=4, dtype=np.uint8_t] X,
                             out_map_mv[n, i_start, j_start, m] = max_index
 
                         vs[max_index] = -np.inf
-
 
     return out_map
 

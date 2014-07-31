@@ -5,6 +5,7 @@ import amitgroup as ag
 from pnet.layer import Layer
 import pnet
 
+
 class ExtractionFunction:
     """
     Extracting feature from a certain layer, means that layer
@@ -64,28 +65,22 @@ class PartsNet(Layer):
         for i, layer in enumerate(self._layers):
             parent_self = self
 
-            #class POSF(ExtractionFunction):
-                #def __call__(self, x):
-                    #return self.layer.pos_remap(self.phi, x)
-
-            #posf = POSF(layer=layer,
-                        #phi=posfs[-1],
-                        #name='{}::{}'.format(i, layer.name))
-
             A = np.dot(layer.pos_matrix, As[-1])
 
             class F(ExtractionFunction):
                 def __call__(self, x):
-                    if parent_self.caching:
-                        h = smart_hash(x)
-                        if h in self._cache:
-                            return self._cache[h]
+                    import gv
+                    with gv.Timer(self.name):
+                        if parent_self.caching:
+                            h = smart_hash(x)
+                            if h in self._cache:
+                                return self._cache[h]
 
-                    v = self.layer.extract(self.phi, x)
+                        v = self.layer.extract(self.phi, x)
 
-                    if parent_self.caching:
-                        self._cache[h] = v
-                    return v
+                        if parent_self.caching:
+                            self._cache[h] = v
+                        return v
 
             f = F(layer=layer,
                   phi=fs[-1],
@@ -133,13 +128,6 @@ class PartsNet(Layer):
                 layer.train(self._extract_funcs[l], X, y=y)
                 ag.info('Done.')
 
-            # If this is the last layer, we do not need to extract
-            # the features.
-            #if l < len(layers) - 1:
-                #ag.info('Extracting layer {}'.format(l))
-                #curX = self._extract_funcs[l+1](X)
-                #ag.info('Done. (Extracting layer {})'.format(l))
-
         # Here There
 
         self.caching = old_caching
@@ -148,7 +136,7 @@ class PartsNet(Layer):
 
     def test(self, X, y):
         yhat = self.extract(X)
-        return yhat == y 
+        return yhat == y
 
     def classify(self, X):
         return self.extract(lambda x: x, X, classify=True)
@@ -163,7 +151,8 @@ class PartsNet(Layer):
     def extract(self, phi, data, classify=False, layer=None):
         X = phi(data)
         if layer is None:
-            index = len(self.layers)-1 if classify else self.first_classifier_index() - 1
+            index = len(self.layers)-1 if classify \
+                else self.first_classifier_index() - 1
         else:
             index = layer
         self._prepare_extract_funcs()

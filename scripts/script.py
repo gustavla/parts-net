@@ -59,6 +59,7 @@ if pnet.parallel.main(__name__):
     label = ag.io.load(args.label)
 
     net = pnet.PartsNet.load(args.model)
+    net.caching = True
 
     if net.layers[0].name in ('oriented-parts-layer', 'oriented-gaussian-parts-layer'):
         part_shape = net.layers[0].part_shape

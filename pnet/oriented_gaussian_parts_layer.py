@@ -198,19 +198,18 @@ class OrientedGaussianPartsLayer(Layer):
                                    self.gmm_cov_type,
                                    )
 
-        bkg_means = self._extra['bkg_mean'].ravel()[np.newaxis]
-        bkg_covars = self._extra['bkg_covar'][np.newaxis]
-        bkg_weights = np.ones(1)
+        if 0:
+            bkg_means = self._extra['bkg_mean'].ravel()[np.newaxis]
+            bkg_covars = self._extra['bkg_covar'][np.newaxis]
+            bkg_weights = np.ones(1)
 
-        bkg_logprob, _ = score_samples(X0,
-                                       bkg_means,
-                                       bkg_weights,
-                                       bkg_covars,
-                                       'full',
-                                       )
+            bkg_logprob, _ = score_samples(X0,
+                                           bkg_means,
+                                           bkg_weights,
+                                           bkg_covars,
+                                           'full',
+                                           )
 
-        print('CLF', logprob)
-        print('BKG_CLF', bkg_logprob)
 
     @property
     def pos_matrix(self):
@@ -325,18 +324,15 @@ class OrientedGaussianPartsLayer(Layer):
         kern = np.array([[-1, 0, 1]]) / np.sqrt(2)
         orientations = 8
 
-        print('mm.means_', mm.means_.shape)
-
         for p in range(self._num_true_parts):
             main_rot = None
             for i, part_ in enumerate(mm.means_[p]):
                 part = part_.reshape(self._part_shape)
 
-                print(part.shape)
-                gr_x = scipy.signal.convolve(part, kern, mode='valid')
-                gr_y = scipy.signal.convolve(part, kern.T, mode='valid')
+                gr_x = scipy.signal.convolve(part, kern, mode='same')
+                gr_y = scipy.signal.convolve(part, kern.T, mode='same')
 
-                a = np.arctan2(gr_y, gr_x)
+                a = np.arctan2(gr_y[1:-1,1:-1], gr_x[1:-1,1:-1])
                 ori_index = orientations * (a + 1.5*np.pi) / (2 * np.pi)
                 indices = np.round(ori_index).astype(np.int32)
                 theta = (orientations - indices) % orientations
@@ -472,19 +468,19 @@ class OrientedGaussianPartsLayer(Layer):
         assert POL in (1, 2), "Polarities must be 1 or 2"
 
         # LEAVE-BEHIND
+        # Make it square, to accommodate all types of rotations
+        size = X.shape[1:3]
+        new_side = np.max(size)
+
+        new_size = [new_side + (new_side - X.shape[1]) % 2,
+                    new_side + (new_side - X.shape[2]) % 2]
 
         from skimage import transform
 
         for n, img in enumerate(X):
-            size = img.shape[:2]
-            # Make it square, to accommodate all types of rotations
-            new_size = np.max(size)
 
-            new_size0 = new_size + (new_size - img.shape[0]) % 2
-            new_size1 = new_size + (new_size - img.shape[1]) % 2
-
-            img_padded = ag.util.pad_to_size(img, (new_size0, new_size1))
-            pad = [(new_size-size[i])//2 for i in range(2)]
+            img_padded = ag.util.pad_to_size(img, (new_size[0], new_size[1]))
+            pad = [(new_size[i]-size[i])//2 for i in range(2)]
 
             angles = np.arange(0, 360, 360/ORI)
             radians = angles*np.pi/180
@@ -504,10 +500,14 @@ class OrientedGaussianPartsLayer(Layer):
             # Set up matrices that will translate a position in the canonical
             # image to the rotated iamges. This way, we're not rotating each
             # patch on demand, which will end up slower.
-            offset = new_size / 2
-            matrices = [pnet.matrix.translation(offset, offset) *
+
+            center_adjusts = [ps[0] % 2,
+                              ps[1] % 2]
+
+            offset = (np.asarray(new_size) - center_adjusts) / 2
+            matrices = [pnet.matrix.translation(offset[0], offset[1]) *
                         pnet.matrix.rotation(a) *
-                        pnet.matrix.translation(-offset, -offset)
+                        pnet.matrix.translation(-offset[0], -offset[1])
                         for a in radians]
 
             # Add matrices for the polarity flips too, if applicable
@@ -535,8 +535,6 @@ class OrientedGaussianPartsLayer(Layer):
             # We want rotation of 90 deg to have exactly the same pixels. For
             # this, we need adjust the center of the patch a bit before
             # rotating.
-            center_adjusts = [(ps[0] % 2) / 2,
-                              (ps[1] % 2) / 2]
 
             std_thresh = self._settings['std_thresh']
 
@@ -550,8 +548,8 @@ class OrientedGaussianPartsLayer(Layer):
                                   slice(x+minus_ps[0]+fr, x+plus_ps[0]-fr),
                                   slice(y+minus_ps[1]+fr, y+plus_ps[1]-fr)]
 
-                    XY = np.array([x + center_adjusts[0],
-                                   y + center_adjusts[1],
+                    XY = np.array([x,
+                                   y,
                                    1])[:, np.newaxis]
 
                     # Now, let's explore all orientations
@@ -562,7 +560,7 @@ class OrientedGaussianPartsLayer(Layer):
 
                         # The epsilon makes the truncation safer
                         eps = 1e-5
-                        ip = [int((float(p[i])) + eps) for i in range(2)]
+                        ip = [int(round(float(p[i]))) for i in range(2)]
 
                         selection = [ori,
                                      slice(ip[0] + minus_ps[0],
