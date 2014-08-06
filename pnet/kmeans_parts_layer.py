@@ -7,6 +7,7 @@ import amitgroup as ag
 from pnet.layer import Layer
 import pnet
 
+
 @Layer.register('kmeans-parts-layer')
 class KMeansPartsLayer(Layer):
     def __init__(self, num_parts, part_shape, settings={}):
@@ -40,32 +41,22 @@ class KMeansPartsLayer(Layer):
 
         feature_map = -np.ones((X.shape[0],) + dim, dtype=np.int64)
 
-        for i, j in itr.product(range(dim[0]), range(dim[1])):
-            Xij_patch = X[:,i:i+ps[0],j:j+ps[1]]
-            flatXij_patch = Xij_patch.reshape((X.shape[0], -1))
+        with ag.Timer('extracting'):
+            for i, j in itr.product(range(dim[0]), range(dim[1])):
+                Xij_patch = X[:, i:i+ps[0], j:j+ps[1]]
+                flatXij_patch = Xij_patch.reshape((X.shape[0], -1))
 
-            #if flatXij_patch.dtype == np.uint8:
-                #flatXij_patch = flatXij_patch.astype(np.float64) / 255
+                ok = (flatXij_patch.std(-1) > self.threshold)
 
-            # Whiten the patches
+                if 0 and 'classifier' in self._extra:
+                    flatXij_patch[ok] = self._standardize_patches(flatXij_patch[ok])
+                    flatXij_patch[ok] = self.whiten_patches(flatXij_patch[ok])
+                    feature_map[ok, i, j] = self._extra['classifier'].predict(flatXij_patch[ok])
+                else:
+                    # feature_map[ok, i, j] = self._extract_func(flatXij_patch[ok].astype(self._dtype))
+                    feature_map[ok, i, j] = self._extract_func(flatXij_patch[ok])
 
-            ok = (flatXij_patch.std(-1) > self.threshold)
-
-            #flatXij_patch[ok] = self._standardize_patches(flatXij_patch[ok])
-
-            #flatXij_patch[ok] = self.whiten_patches(flatXij_patch[ok])
-
-            #feature_map[ok,i,j] = self._extra['classifier'].predict(flatXij_patch[ok])
-            #y = self._extra['classifier'].predict(flatXij_patch[ok])
-            feature_map[ok,i,j] = self._extract_func(flatXij_patch[ok].astype(self._dtype))
-            #z = feature_map[ok,i,j]
-
-            #if np.sum(y == 3) < y.size:
-                #import pdb; pdb.set_trace()
-
-            #feature_map[~ok,i,j] = -1
-
-        return (feature_map[...,np.newaxis], self._num_parts)
+        return (feature_map[..., np.newaxis], self._num_parts)
 
     @property
     def trained(self):
@@ -181,33 +172,34 @@ class KMeansPartsLayer(Layer):
     def _create_extract_func(self):
         import theano.tensor as T
         import theano
-        from theano.tensor.nnet import conv
-
         # Create Theano convolution function
         s_input = T.matrix(name='input')
+        x = s_input
 
+        # Standardize input
         s_means = s_input.mean(1, keepdims=True)
         stds = s_input.std(1, keepdims=True)
-
         epsilon = 0.025 / 2
+        x = (s_input - s_means) / (stds + epsilon)
+        # Standardize, end
 
-        x_stand = (s_input - s_means) / (stds + epsilon)
+        # Whiten
+        s_whiten = theano.shared(self._whitening_matrix.astype(s_input.dtype),
+                                 name='whitening_matrix')
+        x = T.dot(s_whiten, x.T).T
+        # Whiten, end
 
-        s_whiten = theano.shared(self._whitening_matrix.astype(s_input.dtype), name='whitening_matrix')
-        # Whiten the input
-        x_white = T.dot(s_whiten, x_stand.T).T
-        #return np.dot(self._whitening_matrix, flat_patches.T).T
-
-        x = x_white.dimshuffle(0, 'x', 1)
-
-        mu = self._parts.reshape((self._parts.shape[0], -1)).astype(s_input.dtype)
-
+        mu = (self._parts
+              .reshape((self._parts.shape[0], -1))
+              .astype(s_input.dtype))
         alphas = np.sum(mu ** 2, 1) / 2
 
-        s_mu = theano.shared(mu, name='mu').dimshuffle('x', 0, 1)
+        s_mu = theano.shared(mu, name='mu')#.dimshuffle('x', 0, 1)
         s_alphas = theano.shared(alphas, name='alphas').dimshuffle('x', 0)
 
-        sums = T.sum(x * s_mu, axis=2)
+
+        #sums = T.sum(x * s_mu, axis=2)
+        sums = T.tensordot(x, s_mu, [[1], [1]])
         s_output = (sums - s_alphas).argmax(1)
 
         self._dtype = s_input.dtype

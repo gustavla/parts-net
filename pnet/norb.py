@@ -11,7 +11,7 @@ def _test(Xs, ys, net, n_classes):
 def train_and_test(net, samples_per_class=None, seed=0, limit=None):
     # Load training data
     print('Loading data')
-    X, y = ag.io.load_small_norb('training', selection=slice(1000))
+    X, y = ag.io.load_small_norb('training', selection=slice(25000))
     X = X.astype(np.float64) / 255.0
     #X, y = ag.io.load_small_norb('training')
     print('Loading data... Done')
@@ -23,7 +23,7 @@ def train_and_test(net, samples_per_class=None, seed=0, limit=None):
 
     print('Training unsupervised')
     # Train unsupervised
-    net.train(lambda x: x, X)
+    net.train(lambda x: x, X[::2])
     print('Training unsupervised... Done')
 
     rs = np.random.RandomState(seed)
@@ -63,22 +63,25 @@ def train_and_test(net, samples_per_class=None, seed=0, limit=None):
     #p = Pool(4)
 
     for n in itr.count(0):
-        test_X, test_y = ag.io.load_small_norb('testing', selection=slice(S * n, S * (n + 1)))
+        sel = slice(S * n, S * (n + 1))
+        test_X, test_y = ag.io.load_small_norb('testing', selection=sel)
         if test_X.size == 0:
             break
 
         test_X = test_X.astype(np.float64) / 255.0
 
-        BATCHES = len(test_X) // 2
+        BATCHES = len(test_X) // 5000
 
         test_X_batches = np.array_split(test_X, BATCHES)
         test_y_batches = np.array_split(test_y, BATCHES)
 
         # Test
-        params = [tup+(net, n_classes) for tup in zip(test_X_batches, test_y_batches)]
+        zipped = zip(test_X_batches, test_y_batches)
+        params = [tup+(net, n_classes) for tup in zipped]
         #for i, conf in enumerate(p.starmap(_test, params)):
         #for i, conf in enumerate(itr.starmap(_test, params)):
-        for i, conf in enumerate(pnet.parallel.starmap_unordered(_test, params)):
+        for i, conf in enumerate(pnet.parallel.starmap_unordered(_test,
+                                 params)):
             corrects += np.trace(conf)
             total += np.sum(conf)
 
