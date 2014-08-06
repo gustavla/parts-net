@@ -5,14 +5,14 @@ from .intensity_threshold_layer import IntensityThresholdLayer
 from .edge_layer import EdgeLayer
 from .pooling_layer import PoolingLayer
 from .spreading_layer import SpreadingLayer  # TODO Temporary
-from .parts_layer import PartsLayer
+#from .parts_layer import PartsLayer
 from .kmeans_parts_layer import KMeansPartsLayer
-from .gaussian_parts_layer import GaussianPartsLayer
+#from .gaussian_parts_layer import GaussianPartsLayer
 from .oriented_parts_layer import OrientedPartsLayer
 from .oriented_gaussian_parts_layer import OrientedGaussianPartsLayer
-from .hierarchical_parts_layer import HierarchicalPartsLayer
-from .binary_tree_parts_layer import BinaryTreePartsLayer
-from .random_forest_parts_layer import RandomForestPartsLayer
+#from .hierarchical_parts_layer import HierarchicalPartsLayer
+#from .binary_tree_parts_layer import BinaryTreePartsLayer
+#from .random_forest_parts_layer import RandomForestPartsLayer
 from .resize_layer import ResizeLayer
 from .crop_layer import CropLayer
 from .parts_net import PartsNet

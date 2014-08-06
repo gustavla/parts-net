@@ -210,7 +210,6 @@ class OrientedGaussianPartsLayer(Layer):
                                            'full',
                                            )
 
-
     @property
     def pos_matrix(self):
         return self.conv_pos_matrix(self._part_shape)
@@ -266,6 +265,7 @@ class OrientedGaussianPartsLayer(Layer):
 
             not_ok2 = (flatXij_patch.std(-1) <= self._settings['std_thresh'])
             not_ok |= not_ok2
+
             feature_map[not_ok, i, j] = -1
 
             ex_log_probs2.append(logratio[~not_ok2])
@@ -291,7 +291,6 @@ class OrientedGaussianPartsLayer(Layer):
     def train(self, phi, data, y=None):
         X = phi(data)
         raw_originals, the_rest = self._get_patches(X)
-
         self._train_info = {}
         self._train_info['example_patches2'] = raw_originals[:10]
 
@@ -300,7 +299,7 @@ class OrientedGaussianPartsLayer(Layer):
         if self._settings['standardize']:
             mu = ag.apply_once_over_axes(np.mean, raw_originals, [1, 2, 3])
             sigma = ag.apply_once_over_axes(np.std, raw_originals, [1, 2, 3])
-            epsilon = 0.01
+            epsilon = 0.025 / 2
             raw_originals = (raw_originals - mu) / (sigma + epsilon)
 
         self.train_from_samples(raw_originals, the_rest)
@@ -332,13 +331,15 @@ class OrientedGaussianPartsLayer(Layer):
                 gr_x = scipy.signal.convolve(part, kern, mode='same')
                 gr_y = scipy.signal.convolve(part, kern.T, mode='same')
 
-                a = np.arctan2(gr_y[1:-1,1:-1], gr_x[1:-1,1:-1])
+                a = np.arctan2(gr_y[1:-1, 1:-1], gr_x[1:-1, 1:-1])
                 ori_index = orientations * (a + 1.5*np.pi) / (2 * np.pi)
                 indices = np.round(ori_index).astype(np.int32)
                 theta = (orientations - indices) % orientations
 
                 # This is not the most robust way, but it works
-                if np.bincount(theta.ravel(), minlength=8).argmax() == 0:
+                counts = np.bincount(theta.ravel(), minlength=8)
+                print(':', i, counts)
+                if counts.argmax() == 0:
                     main_rot = i
                     break
 
@@ -412,7 +413,7 @@ class OrientedGaussianPartsLayer(Layer):
         self._train_info['example_patches'] = ex_patches
 
         # Rotate the parts into the canonical rotation
-        if POL == 1:
+        if POL == 1 and False:
             self.rotate_indices(mm, ORI)
 
         means_shape = (mm.n_components * P,) + raw_originals.shape[2:]
@@ -548,18 +549,16 @@ class OrientedGaussianPartsLayer(Layer):
                                   slice(x+minus_ps[0]+fr, x+plus_ps[0]-fr),
                                   slice(y+minus_ps[1]+fr, y+plus_ps[1]-fr)]
 
-                    XY = np.array([x,
-                                   y,
-                                   1])[:, np.newaxis]
+                    XY = np.array([x, y, 1])[:, np.newaxis]
 
                     # Now, let's explore all orientations
                     vispatch = np.zeros((ORI * POL,) + ps)
 
+                    br = False
                     for ori in range(ORI * POL):
                         p = np.dot(matrices[ori], XY)
 
                         # The epsilon makes the truncation safer
-                        eps = 1e-5
                         ip = [int(round(float(p[i]))) for i in range(2)]
 
                         selection = [ori,
@@ -569,7 +568,14 @@ class OrientedGaussianPartsLayer(Layer):
                                            ip[1] + plus_ps[1])]
 
                         orig = all_img[selection]
-                        vispatch[ori] = orig
+                        try:
+                            vispatch[ori] = orig
+                        except:
+                            br = True
+                            break
+
+                    if br:
+                        continue
 
                     # Randomly rotate this patch, so that we don't bias
                     # the unrotated (and possibly unblurred) image
@@ -583,8 +589,8 @@ class OrientedGaussianPartsLayer(Layer):
                     if all_img[sel0_inner].std() > std_thresh:
                         the_originals.append(vispatch)
                         if len(the_originals) % 500 == 0:
-                            print('Samples {}/{}'.format(len(the_originals),
-                                                         max_samples))
+                            ag.info('Samples {}/{}'.format(len(the_originals),
+                                                           max_samples))
 
                         if len(the_originals) >= max_samples:
                             return (np.asarray(the_originals),

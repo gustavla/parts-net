@@ -9,20 +9,21 @@ def _test(Xs, ys, net, n_classes):
     return pnet.rescalc.confusion_matrix(ys, yhats, n_classes)
 
 def train_and_test(net, samples_per_class=None, seed=0, limit=None):
-    # Load training data        
+    # Load training data
     print('Loading data')
-    #X, y = ag.io.load_small_norb('training', selection=slice(10000)) 
-    X, y = ag.io.load_small_norb('training')
+    X, y = ag.io.load_small_norb('training', selection=slice(1000))
+    X = X.astype(np.float64) / 255.0
+    #X, y = ag.io.load_small_norb('training')
     print('Loading data... Done')
     #X = X.astype(np.float64)/255.0
 
-    n_classes = y.max() + 1 
+    n_classes = y.max() + 1
 
     print('Shape of training data', X.shape)
 
     print('Training unsupervised')
     # Train unsupervised
-    net.train(X) 
+    net.train(lambda x: x, X)
     print('Training unsupervised... Done')
 
     rs = np.random.RandomState(seed)
@@ -42,9 +43,12 @@ def train_and_test(net, samples_per_class=None, seed=0, limit=None):
 
     print('Training supervised')
     # Train supervised (avoid twins)
-    net.train(X[::2], y[::2])
+    net.train(lambda x: x, X[::2], y[::2])
     print('Training supervised... Done')
 
+    from vzlog.default import vz
+    vz.output(net)
+    vz.flush()
     net.save('model.h5')
 
     # Load testing data
@@ -63,28 +67,26 @@ def train_and_test(net, samples_per_class=None, seed=0, limit=None):
         if test_X.size == 0:
             break
 
-        test_X = test_X.astype(np.float64)/255.0
+        test_X = test_X.astype(np.float64) / 255.0
 
-        BATCHES = len(test_X) // 2 
+        BATCHES = len(test_X) // 2
 
         test_X_batches = np.array_split(test_X, BATCHES)
         test_y_batches = np.array_split(test_y, BATCHES)
 
         # Test
         params = [tup+(net, n_classes) for tup in zip(test_X_batches, test_y_batches)]
-        for i, conf in enumerate(pnet.parallel.starmap_unordered(_test, params)):
         #for i, conf in enumerate(p.starmap(_test, params)):
         #for i, conf in enumerate(itr.starmap(_test, params)):
-            corrects += np.trace(conf) 
-            total += np.sum(conf) 
+        for i, conf in enumerate(pnet.parallel.starmap_unordered(_test, params)):
+            corrects += np.trace(conf)
+            total += np.sum(conf)
 
             confusion_matrix += conf
 
             pr = corrects / total
-            error_rate = 1.0 - pr 
-            ag.info('{} {} ({}) Current error rate {:.02f}%'.format(n, i, total, 100*error_rate))
-            import sys
-            sys.stdout.flush()
+            error_rate = 1.0 - pr
+            ag.info('{} {} ({}) Current error rate {:.02f}% ({})'.format(n, i, total, 100*error_rate, limit))
 
             if limit is not None and total >= limit:
                 break
@@ -93,6 +95,6 @@ def train_and_test(net, samples_per_class=None, seed=0, limit=None):
             break
 
     pr = corrects / total
-    error_rate = 1.0 - pr 
+    error_rate = 1.0 - pr
 
     return error_rate, confusion_matrix

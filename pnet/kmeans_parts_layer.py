@@ -55,7 +55,13 @@ class KMeansPartsLayer(Layer):
 
             flatXij_patch[ok] = self.whiten_patches(flatXij_patch[ok])
 
-            feature_map[ok,i,j] = self._extra['classifier'].predict(flatXij_patch[ok])
+            #feature_map[ok,i,j] = self._extra['classifier'].predict(flatXij_patch[ok])
+            #y = self._extra['classifier'].predict(flatXij_patch[ok])
+            feature_map[ok,i,j] = self._extract_func(flatXij_patch[ok].astype(self._dtype))
+            #z = feature_map[ok,i,j]
+
+            #if np.sum(y == 3) < y.size:
+                #import pdb; pdb.set_trace()
 
             #feature_map[~ok,i,j] = -1
 
@@ -172,6 +178,31 @@ class KMeansPartsLayer(Layer):
 
         vz.section('Parts')
 
+    def _create_extract_func(self):
+        import theano.tensor as T
+        import theano
+        from theano.tensor.nnet import conv
+
+        # Create Theano convolution function
+        s_input = T.matrix(name='input')
+        x = s_input.dimshuffle(0, 'x', 1)
+
+        mu = self._parts.reshape((self._parts.shape[0], -1)).astype(s_input.dtype)
+
+        alphas = np.sum(mu * mu, 1) / 2
+
+        s_mu = theano.shared(mu, name='mu').dimshuffle('x', 0, 1)
+        s_alphas = theano.shared(alphas, name='alphas').dimshuffle('x', 0)
+
+        sums = T.sum(x * s_mu, axis=2)
+        s_output = (sums - s_alphas).argmax(1)
+
+        self._dtype = s_input.dtype
+        return theano.function([s_input], s_output)
+
+    def _preprocess(self):
+        self._extract_func = self._create_extract_func()
+
     def _vzlog_output_(self, vz):
         from pylab import cm
         grid = ag.plot.ImageGrid(self._parts)
@@ -194,6 +225,7 @@ class KMeansPartsLayer(Layer):
         obj._parts = d['parts']
         obj._extra = d['extra']
         obj._whitening_matrix = d['whitening_matrix']
+        obj._preprocess()
         return obj
 
     def __repr__(self):

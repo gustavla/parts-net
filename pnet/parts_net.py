@@ -70,17 +70,16 @@ class PartsNet(Layer):
             class F(ExtractionFunction):
                 def __call__(self, x):
                     import gv
-                    with gv.Timer(self.name):
-                        if parent_self.caching:
-                            h = smart_hash(x)
-                            if h in self._cache:
-                                return self._cache[h]
+                    if parent_self.caching:
+                        h = smart_hash(x)
+                        if h in self._cache:
+                            return self._cache[h]
 
-                        v = self.layer.extract(self.phi, x)
+                    v = self.layer.extract(self.phi, x)
 
-                        if parent_self.caching:
-                            self._cache[h] = v
-                        return v
+                    if parent_self.caching:
+                        self._cache[h] = v
+                    return v
 
             f = F(layer=layer,
                   phi=fs[-1],
