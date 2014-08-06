@@ -51,9 +51,9 @@ class KMeansPartsLayer(Layer):
 
             ok = (flatXij_patch.std(-1) > self.threshold)
 
-            flatXij_patch[ok] = self._standardize_patches(flatXij_patch[ok])
+            #flatXij_patch[ok] = self._standardize_patches(flatXij_patch[ok])
 
-            flatXij_patch[ok] = self.whiten_patches(flatXij_patch[ok])
+            #flatXij_patch[ok] = self.whiten_patches(flatXij_patch[ok])
 
             #feature_map[ok,i,j] = self._extra['classifier'].predict(flatXij_patch[ok])
             #y = self._extra['classifier'].predict(flatXij_patch[ok])
@@ -185,11 +185,24 @@ class KMeansPartsLayer(Layer):
 
         # Create Theano convolution function
         s_input = T.matrix(name='input')
-        x = s_input.dimshuffle(0, 'x', 1)
+
+        s_means = s_input.mean(1, keepdims=True)
+        stds = s_input.std(1, keepdims=True)
+
+        epsilon = 0.025 / 2
+
+        x_stand = (s_input - s_means) / (stds + epsilon)
+
+        s_whiten = theano.shared(self._whitening_matrix.astype(s_input.dtype), name='whitening_matrix')
+        # Whiten the input
+        x_white = T.dot(s_whiten, x_stand.T).T
+        #return np.dot(self._whitening_matrix, flat_patches.T).T
+
+        x = x_white.dimshuffle(0, 'x', 1)
 
         mu = self._parts.reshape((self._parts.shape[0], -1)).astype(s_input.dtype)
 
-        alphas = np.sum(mu * mu, 1) / 2
+        alphas = np.sum(mu ** 2, 1) / 2
 
         s_mu = theano.shared(mu, name='mu').dimshuffle('x', 0, 1)
         s_alphas = theano.shared(alphas, name='alphas').dimshuffle('x', 0)
