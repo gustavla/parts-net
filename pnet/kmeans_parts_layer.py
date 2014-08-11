@@ -19,6 +19,10 @@ class KMeansPartsLayer(Layer):
         self._parts = None
         self._whitening_matrix = None
 
+        # Whitening and standardization epsilons
+        self.w_epsilon = 0.01
+        self.epsilon = 10 / 255
+
     @property
     def num_parts(self):
         return self._num_parts
@@ -53,8 +57,8 @@ class KMeansPartsLayer(Layer):
                     flatXij_patch[ok] = self.whiten_patches(flatXij_patch[ok])
                     feature_map[ok, i, j] = self._extra['classifier'].predict(flatXij_patch[ok])
                 else:
-                    # feature_map[ok, i, j] = self._extract_func(flatXij_patch[ok].astype(self._dtype))
-                    feature_map[ok, i, j] = self._extract_func(flatXij_patch[ok])
+                    feature_map[ok, i, j] = self._extract_func(flatXij_patch[ok].astype(self._dtype))
+                    #feature_map[ok, i, j] = self._extract_func(flatXij_patch[ok])
 
         return (feature_map[..., np.newaxis], self._num_parts)
 
@@ -71,23 +75,25 @@ class KMeansPartsLayer(Layer):
         #stds = ag.apply_once_over_axes(np.std, patches, [1, 2])
 
         means = np.apply_over_axes(np.mean, flat_patches, [1])
-        stds = np.apply_over_axes(np.std, flat_patches, [1])
+        #stds = np.apply_over_axes(np.std, flat_patches, [1])
+        variances = np.apply_over_axes(np.var, flat_patches, [1])
 
-        epsilon = 0.025 / 2
-
-        return (flat_patches - means) / (stds + epsilon)
+        return (flat_patches - means) / np.sqrt(variances + self.epsilon)
 
     def whiten_patches(self, flat_patches):
         return np.dot(self._whitening_matrix, flat_patches.T).T
 
     def train(self, phi, data, y=None):
         assert y is None
-        X = phi(data)
-        ag.info('Extracting patches')
-        #patches = self._get_patches(X)
-
         n_samples = self._settings.get('n_samples', 100000)
         n_per_image = self._settings.get('n_per_image', 200)
+
+        n_images = n_samples // n_per_image
+
+        # TODO: This always processes all the images
+        X = phi(data[:n_images])
+        ag.info('Extracting patches')
+        #patches = self._get_patches(X)
 
         # Get patches
         gen = ag.image.extract_patches(X, self._part_shape,
@@ -95,6 +101,7 @@ class KMeansPartsLayer(Layer):
                                        seed=self._settings.get('seed', 0))
 
 
+        ag.info('Extracting patches 2')
         # Filter
         #gen = filter(lambda x: x.std() > self.threshold, gen)
 
@@ -112,15 +119,20 @@ class KMeansPartsLayer(Layer):
         # Now request the patches and convert them to floats
         #patches = np.asarray(list(itr.islice(gen, n_samples)), dtype=np.float64) / 255
         patches = np.asarray(list(itr.islice(gen, n_samples)))
+        ag.info('Extracting patches 3')
 
-        from pnet.vzlog import default as vz
+        from vzlog.default import vz
 
         # Flatten the patches
         pp = patches.reshape((patches.shape[0], -1))
 
+        C = X.shape[-1]
+
         def plot(title):
             vz.section(title)
-            ag.plot.ImageGrid(pp[:200].reshape((-1, 6, 6)), rows=5).save(vz.impath(), scale=3)
+            sh = (-1,) + self._part_shape + (C,)
+            grid = ag.plot.ColorImageGrid(pp[:1000].reshape(sh), rows=15)
+            grid.save(vz.impath(), scale=3)
 
         plot('Original patches')
 
@@ -136,8 +148,8 @@ class KMeansPartsLayer(Layer):
 
         U, S, _ = np.linalg.svd(sigma)
 
-        epsilon = 1e-40
-        shrinker = np.diag(1 / np.sqrt(S + epsilon))
+        #epsilon = 1e-40
+        shrinker = np.diag(1 / np.sqrt(S + self.w_epsilon))
         #shrinker = np.diag(1 / np.sqrt(S.clip(min=epsilon)))
 
         #self._whitening_matrix = U @ shrinker @ U.T
@@ -148,26 +160,34 @@ class KMeansPartsLayer(Layer):
 
         plot('Whitened patches')
 
-        # Run K-means
-        from sklearn.cluster import KMeans, MiniBatchKMeans
+        if self._settings.get('random_centroids'):
+            rs = np.random.RandomState(self._settings.get('seed', 0))
+            sh = (self._num_parts,) + self._part_shape
+            self._parts = rs.normal(0, 1, size=sh)
+            #self._parts /= ag.apply_once_over_axes(np.mean, self._parts, [1, 2])
+            return
+        else:
+            # Run K-means
+            from sklearn.cluster import KMeans, MiniBatchKMeans
 
-        #cl = MiniBatchKMeans(
-        cl = KMeans(
-                    n_clusters=self._num_parts,
-                    n_init=self._settings.get('n_init', 1),
-                    random_state=self._settings.get('seed', 0),
-                    #batch_size=50000,
-                    n_jobs=self._settings.get('n_jobs', 1),
-                    )
+            #cl = MiniBatchKMeans(
+            cl = KMeans(
+                        n_clusters=self._num_parts,
+                        n_init=self._settings.get('n_init', 1),
+                        max_iter=self._settings.get('max_iter', 300),
+                        random_state=self._settings.get('seed', 0),
+                        #batch_size=50000,
+                        n_jobs=self._settings.get('n_jobs', 1),
+                        )
 
-        ag.info('Training', self._num_parts, 'K-means parts')
-        cl.fit(pp)
-        ag.info('Done.')
+            ag.info('Training', self._num_parts, 'K-means parts')
+            cl.fit(pp)
+            ag.info('Done.')
 
-        self._parts = cl.cluster_centers_.reshape((-1,) + patches.shape[1:])
-        self._extra['classifier'] = cl
+            self._parts = cl.cluster_centers_.reshape((-1,) + patches.shape[1:])
+            self._extra['classifier'] = cl
 
-        vz.section('Parts')
+            vz.section('Parts')
 
     def _create_extract_func(self):
         import theano.tensor as T
@@ -178,9 +198,9 @@ class KMeansPartsLayer(Layer):
 
         # Standardize input
         s_means = s_input.mean(1, keepdims=True)
-        stds = s_input.std(1, keepdims=True)
-        epsilon = 0.025 / 2
-        x = (s_input - s_means) / (stds + epsilon)
+        #stds = s_input.std(1, keepdims=True)
+        s_vars = s_input.var(1, keepdims=True)
+        x = (s_input - s_means) / T.sqrt(s_vars + self.epsilon)
         # Standardize, end
 
         # Whiten
@@ -194,11 +214,9 @@ class KMeansPartsLayer(Layer):
               .astype(s_input.dtype))
         alphas = np.sum(mu ** 2, 1) / 2
 
-        s_mu = theano.shared(mu, name='mu')#.dimshuffle('x', 0, 1)
+        s_mu = theano.shared(mu, name='mu')
         s_alphas = theano.shared(alphas, name='alphas').dimshuffle('x', 0)
 
-
-        #sums = T.sum(x * s_mu, axis=2)
         sums = T.tensordot(x, s_mu, [[1], [1]])
         s_output = (sums - s_alphas).argmax(1)
 
@@ -210,8 +228,21 @@ class KMeansPartsLayer(Layer):
 
     def _vzlog_output_(self, vz):
         from pylab import cm
-        grid = ag.plot.ImageGrid(self._parts)
-        grid.save(vz.impath(), scale=4)
+        vz.log('parts shape', self._parts.shape)
+
+        C = self._parts.shape[-1]
+
+        if C == 1:
+            grid = ag.plot.ImageGrid(self._parts[...,0])
+            grid.save(vz.impath(), scale=4)
+        elif C in [2, 3]:
+            cpp = (self._parts - self._parts.min()) / (self._parts.max() - self._parts.min())
+            grid = ag.plot.ColorImageGrid(cpp)
+            grid.save(vz.impath(), scale=4)
+
+        #grid = ag.plot.ImageGrid(self._parts.transpose(0, 3, 1, 2))
+        #grid.save(vz.impath(), scale=4)
+
 
     def save_to_dict(self):
         d = {}

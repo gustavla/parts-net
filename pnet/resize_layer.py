@@ -29,11 +29,17 @@ class ResizeLayer(Layer):
         X = phi(data)
         if self._factor == 1.0:
             if X.dtype == np.uint8:
-                return X.astype(np.float64) / 255
+                X_resized = X.astype(np.float64) / 255
             else:
-                return X
+                X_resized = X
         else:
-            return np.asarray([resize(im, self._factor) for im in X])
+            X_resized = np.asarray([resize(im, self._factor) for im in X])
+
+        # TODO: New stuff, maybe move
+        if X_resized.ndim == 3:
+            return X_resized[...,np.newaxis]
+        else:
+            return X_resized
 
     def __repr__(self):
         return "ResizeLayer(factor={})".format(self._factor)

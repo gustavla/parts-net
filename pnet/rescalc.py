@@ -15,10 +15,10 @@ def calc_precision_recall(detections, tp_fn):
             arr = detections['correct'][indx:]
             tp = arr.sum()
             tp_fp = arr.size
-        
+
             recalls.append(tp / tp_fn)
             precisions.append(tp / tp_fp)
-    
+
     if len(precisions) >= 1:
         precisions.append(precisions[-1])
     else:
@@ -44,10 +44,10 @@ def calc_fppi_miss_rate(detections, tp_fn, num_images):
             tp = arr.sum()
             tp_fp = arr.size
             fp = tp_fp - tp
-        
+
             recalls.append(tp / tp_fn)
             fppi.append(fp / num_images)
-    
+
     if len(fppi) >= 1:
         fppi.append(fppi[-1])
     else:
@@ -65,7 +65,7 @@ def calc_fppi_summary(fppi, miss_rate):
         scores[i] = miss_rate[ind]
     return scores.mean()
 
-def confusion_matrix(y, yhat, n_classes):
+def confusion_matrix(y, yhat, n_classes=None):
     """
     Calculate confusion matrix. Actual values will be rows and predicted
     values will be columns. That is, how many test samples of 2 classified as 4
@@ -89,6 +89,8 @@ def confusion_matrix(y, yhat, n_classes):
     confusion_matrix : ndarray, shape (n_classes, n_classes)
         Confusion matrix.
     """
+    if n_classes is None:
+        n_classes = max(y.max(), yhat.max()) + 1
 
     return np.bincount(n_classes * y + yhat, minlength=n_classes*n_classes)\
             .reshape((n_classes, n_classes))
@@ -101,7 +103,7 @@ if 0:
             ii = np.where(r >= t)[0]
             pre = 0
             if ii.size > 0:
-                pre += p[ii].max()  
-            
+                pre += p[ii].max()
+
             ap += pre / 11
         return ap

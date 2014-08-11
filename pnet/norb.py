@@ -11,19 +11,36 @@ def _test(Xs, ys, net, n_classes):
 def train_and_test(net, samples_per_class=None, seed=0, limit=None):
     # Load training data
     print('Loading data')
-    X, y = ag.io.load_small_norb('training', selection=slice(25000))
-    X = X.astype(np.float64) / 255.0
-    #X, y = ag.io.load_small_norb('training')
+    S = 1000
+    def batch_loader(dataset, count):
+        for n in itr.count(0):
+            if count is None:
+                count0 = S
+            else:
+                count0 = max(min(S, count - S * n), 0)
+
+            test_X = ag.io.load_small_norb(dataset, offset=S * n,
+                                           count=count0, ret='x')
+            if test_X.size == 0:
+                break
+            test_X = test_X.astype(np.float64) / 255.0
+            test_X = test_X.transpose(0, 2, 3, 1)
+            yield test_X
+
+    #count = 15000
+    count = None
+    #count_sel = slice(count) if count is not None else None
+
+    X = batch_loader('training', count)
+    y = ag.io.load_small_norb('training', count=count, ret='y')
+
     print('Loading data... Done')
-    #X = X.astype(np.float64)/255.0
 
     n_classes = y.max() + 1
 
-    print('Shape of training data', X.shape)
-
     print('Training unsupervised')
     # Train unsupervised
-    net.train(lambda x: x, X[::2])
+    #net.train(lambda x: x, X)
     print('Training unsupervised... Done')
 
     rs = np.random.RandomState(seed)
@@ -42,8 +59,7 @@ def train_and_test(net, samples_per_class=None, seed=0, limit=None):
         y = y[indices]
 
     print('Training supervised')
-    # Train supervised (avoid twins)
-    net.train(lambda x: x, X[::2], y[::2])
+    net.train(lambda x: x, X, y)
     print('Training supervised... Done')
 
     from vzlog.default import vz
@@ -53,7 +69,6 @@ def train_and_test(net, samples_per_class=None, seed=0, limit=None):
 
     # Load testing data
 
-    S = 5000
     corrects = 0
     total = 0
 
@@ -63,14 +78,15 @@ def train_and_test(net, samples_per_class=None, seed=0, limit=None):
     #p = Pool(4)
 
     for n in itr.count(0):
-        sel = slice(S * n, S * (n + 1))
-        test_X, test_y = ag.io.load_small_norb('testing', selection=sel)
+        test_X, test_y = ag.io.load_small_norb('testing', ret='xy',
+                                               offset=n * S, count=S)
         if test_X.size == 0:
             break
 
         test_X = test_X.astype(np.float64) / 255.0
+        test_X = test_X.transpose(0, 2, 3, 1)
 
-        BATCHES = len(test_X) // 5000
+        BATCHES = max(1, len(test_X) // 5000)
 
         test_X_batches = np.array_split(test_X, BATCHES)
         test_y_batches = np.array_split(test_y, BATCHES)
