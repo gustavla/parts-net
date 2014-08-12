@@ -27,7 +27,7 @@ def train_and_test(net, samples_per_class=None, seed=0, limit=None):
             test_X = test_X.transpose(0, 2, 3, 1)
             yield test_X
 
-    #count = 15000
+    #count = 5000
     count = None
     #count_sel = slice(count) if count is not None else None
 

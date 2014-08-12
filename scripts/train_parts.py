@@ -36,7 +36,11 @@ if __name__ == '__main__':
     if args.data[0] == ':':
         if args.data == ':small-norb-training':
             data, _ = ag.io.load_small_norb('training')
-            data = data.transpose(0, 2, 3, 1)
+            data = data.transpose(0, 2, 3, 1).astype(np.float64) / 255
+        elif args.data == ':cifar-10-training':
+            data = np.concatenate([ag.io.load_cifar_10('training', offset=10000*b)[0]
+                                      for b in range(5)], axis=0)
+            data = data.transpose(0, 2, 3, 1).astype(np.float64) / 255
         else:
             raise ValueError('Unknown data: {}'.format(args.data))
     else:
@@ -57,7 +61,43 @@ if __name__ == '__main__':
                 pnet.ResizeLayer(factor=args.factor),
             ]
 
-        if 0:
+        if 1:
+            settings=dict(n_iter=10,
+                          seed=0,
+                          n_init=5,
+                          standardize=True,
+                          samples_per_image=100,
+                          max_samples=10000,
+                          uniform_weights=True,
+                          max_covariance_samples=None,
+                          covariance_type='diag',
+                          min_covariance=0.0025,
+                          logratio_thresh=-np.inf,
+                          std_thresh=0.05,
+                          std_thresh_frame=0,
+                          #rotation_spreading_radius=0,
+                          )
+
+            layers += [
+                pnet.OrientedGaussianPartsLayer(n_parts=2, n_orientations=8,
+                                                part_shape=(3, 3),
+                                                settings=settings),
+                pnet.PoolingLayer(shape=(2, 2), strides=(1, 1)),
+                pnet.OrientedPartsLayer(n_parts=1000,
+                                        n_orientations=1,
+                                        part_shape=(part_size, part_size),
+                                        settings=dict(outer_frame=1,
+                                                      seed=training_seed,
+                                                      threshold=2,
+                                                      samples_per_image=20,
+                                                      #max_samples=30000,
+                                                      max_samples=3000,
+                                                      #max_samples=30000,
+                                                      #train_limit=10000,
+                                                      min_prob=0.00005,)),
+
+            ]
+        elif 0:
             layers += [
                 pnet.OrientedPartsLayer(numParts, num_orientations, (part_size, part_size), settings=dict(outer_frame=2,
                                                           em_seed=training_seed,
@@ -95,11 +135,12 @@ if __name__ == '__main__':
             ]
         elif 1:
             layers += [
-                pnet.KMeansPartsLayer(1000, (part_size, part_size), settings=dict(
+                pnet.KMeansPartsLayer(400, (part_size, part_size), settings=dict(
                                                           seed=training_seed,
                                                           n_per_image=100,
                                                           #n_samples=600000,
-                                                          n_samples=200000,
+                                                          #n_samples=200000,
+                                                          n_samples=100000,
                                                           #n_samples=20000,
                                                           #n_samples=3000,
                                                           n_init=1,
@@ -154,6 +195,8 @@ if __name__ == '__main__':
         print('Training parts')
         net.train(lambda _: _, data)
         print('Done.')
+
+
 
         net.save(save_file)
 

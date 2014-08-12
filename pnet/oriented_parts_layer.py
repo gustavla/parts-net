@@ -73,7 +73,9 @@ class OrientedPartsLayer(Layer):
         return self.conv_pos_matrix(self._part_shape)
 
     def extract(self, phi, data):
-        im = phi(data)
+        import amitgroup as ag
+        with ag.Timer('extract inside parts'):
+            im = phi(data)
 
         # Guess an appropriate batch size.
         output_shape = (im.shape[1] - self._part_shape[0] + 1,
@@ -95,23 +97,24 @@ class OrientedPartsLayer(Layer):
 
         print('n_batches', n_batches)
 
-        sett = (self._settings,
-                self.num_parts,
-                self._num_orientations,
-                self._part_shape,
-                self._parts,
-                self._extract_func,
-                self._dtype)
+        with ag.Timer('extract more'):
+            sett = (self._settings,
+                    self.num_parts,
+                    self._num_orientations,
+                    self._part_shape,
+                    self._parts,
+                    self._extract_func,
+                    self._dtype)
 
-        if n_batches == 0:
-            feat = _extract_batch(im, *sett)
-        else:
-            im_batches = np.array_split(im, n_batches)
+            if n_batches == 0:
+                feat = _extract_batch(im, *sett)
+            else:
+                im_batches = np.array_split(im, n_batches)
 
-            args = ((im_b,) + sett for im_b in im_batches)
+                args = ((im_b,) + sett for im_b in im_batches)
 
-            res = pnet.parallel.starmap_unordered(_extract_batch, args)
-            feat = np.concatenate([batch for batch in res])
+                res = pnet.parallel.starmap_unordered(_extract_batch, args)
+                feat = np.concatenate([batch for batch in res])
 
         return (feat, self.num_parts, self._num_orientations)
 
@@ -331,14 +334,18 @@ class OrientedPartsLayer(Layer):
         for b in itr.count(0):
             data_subset = data[b*batch_size:(b+1)*batch_size]
             data_padded = ag.util.pad_to_size(data_subset,
-                                              (-1, new_size[0], new_size[1]))
+                    (-1, new_size[0], new_size[1],) + data.shape[3:])
+
+            data_arranged = data_padded.transpose(1, 2, 0, 3).reshape(data_padded.shape[1:3] + (-1,))
 
             all_data = np.asarray([
-                transform.rotate(data_padded.transpose((1, 2, 0)),
+                transform.rotate(data_arranged,
                                  angle,
                                  resize=False,
                                  mode='nearest')
-                for angle in angles]).transpose((3, 0, 1, 2))
+                for angle in angles])
+            all_data = all_data.reshape(all_data.shape[:3] + (-1, data.shape[3]))
+            all_data = all_data.transpose(3, 0, 1, 2, 4)
 
             # Add inverted polarity too
             if POL == 2:
@@ -545,8 +552,14 @@ class OrientedPartsLayer(Layer):
         grid1.save(vz.impath(), scale=4)
 
         # Plot all the parts
-        vz.log('parts', self._parts.shape)
-        grid2 = ImageGrid(self._parts_vis.transpose((0, 3, 1, 2)),
+        if hasattr(self, '_parts_vis'):
+            vz.log('parts', self._parts.shape)
+            grid2 = ImageGrid(self._parts_vis.transpose((0, 3, 1, 2)),
+                              vmin=0, vmax=1, cmap=cm.jet,
+                              border_color=1)
+            grid2.save(vz.impath(), scale=3)
+
+        grid2 = ImageGrid(self._parts.transpose((0, 3, 1, 2)),
                           vmin=0, vmax=1, cmap=cm.jet,
                           border_color=1)
         grid2.save(vz.impath(), scale=3)

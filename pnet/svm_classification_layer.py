@@ -96,7 +96,7 @@ class SVMClassificationLayer(SupervisedLayer):
                         p = 4
                         from sklearn.cross_validation import LeavePLabelOut
                         cats = ag.io.load_small_norb('training', ret='i', count=Xflat.shape[0])[:,0]
-                        ll = ag.io.load_small_norb('training', ret='y', count=Xflat.shape[0])
+                        ll = ag.io.load_small_norb('training', ret='y')[:Xflat.shape[0]]
                         assert (ll == y).all()
 
 
@@ -149,6 +149,14 @@ class SVMClassificationLayer(SupervisedLayer):
             else:
                 clf = LinearSVC(C=self._penalty, random_state=seed)
                 clf.fit(Xflat, y)
+
+        # Check training error rate
+        yhat = clf.predict(Xflat)
+        training_error_rate = 1 - (y == yhat).mean()
+        ag.info('Training error rate: {}%'.format(100 * training_error_rate))
+        ag.info('Confusion matrix')
+        import pnet
+        ag.info(pnet.rescalc.confusion_matrix(y, yhat))
 
         self._svm = clf
 

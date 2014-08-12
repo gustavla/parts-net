@@ -8,7 +8,7 @@ import pnet
 import pnet.matrix
 from scipy import linalg
 from sklearn.utils.extmath import logsumexp, pinvh
-from amitgroup.plot import ImageGrid
+from amitgroup.plot import ImageGrid, ColorImageGrid
 
 
 def _log_multivariate_normal_density_diag(X, means, covars):
@@ -153,6 +153,8 @@ class OrientedGaussianPartsLayer(Layer):
 
         self._visparts = None
 
+        self.epsilon = 10 / 255
+
     @property
     def num_parts(self):
         return self._num_parts
@@ -186,19 +188,19 @@ class OrientedGaussianPartsLayer(Layer):
     def preprocess(self):
         self._extra['loglike_thresh'] = -np.inf
 
-        X0 = 0.0 * np.ones((1, np.prod(self._part_shape)))
-
-        covar = self._prepare_covariance()
-
-        K = self._means.shape[0]
-        logprob, _ = score_samples(X0,
-                                   self._means.reshape((K, -1)),
-                                   self._weights.ravel(),
-                                   covar,
-                                   self.gmm_cov_type,
-                                   )
-
         if 0:
+            X0 = 0.0 * np.ones((1, np.prod(self._part_shape)))
+
+            covar = self._prepare_covariance()
+
+            K = self._means.shape[0]
+            logprob, _ = score_samples(X0,
+                                       self._means.reshape((K, -1)),
+                                       self._weights.ravel(),
+                                       covar,
+                                       self.gmm_cov_type,
+                                       )
+
             bkg_means = self._extra['bkg_mean'].ravel()[np.newaxis]
             bkg_covars = self._extra['bkg_covar'][np.newaxis]
             bkg_weights = np.ones(1)
@@ -297,10 +299,9 @@ class OrientedGaussianPartsLayer(Layer):
         # Standardize them
         # TODO
         if self._settings['standardize']:
-            mu = ag.apply_once_over_axes(np.mean, raw_originals, [1, 2, 3])
-            sigma = ag.apply_once_over_axes(np.std, raw_originals, [1, 2, 3])
-            epsilon = 0.025 / 2
-            raw_originals = (raw_originals - mu) / (sigma + epsilon)
+            mu = ag.apply_once_over_axes(np.mean, raw_originals, [1, 2, 3, 4])
+            variances = ag.apply_once_over_axes(np.var, raw_originals, [1, 2, 3, 4])
+            raw_originals = (raw_originals - mu) / np.sqrt(variances + self.epsilon)
 
         self.train_from_samples(raw_originals, the_rest)
         self.preprocess()
@@ -400,7 +401,7 @@ class OrientedGaussianPartsLayer(Layer):
 
         # Example patches - initialize to NaN if component doesn't fill it up
         EX_N = 50
-        ex_shape = (self._num_true_parts, EX_N) + self._part_shape
+        ex_shape = (self._num_true_parts, EX_N) + self._part_shape + raw_originals.shape[4:]
         ex_patches = np.empty(ex_shape)
         ex_patches[:] = np.nan
 
@@ -480,7 +481,7 @@ class OrientedGaussianPartsLayer(Layer):
 
         for n, img in enumerate(X):
 
-            img_padded = ag.util.pad_to_size(img, (new_size[0], new_size[1]))
+            img_padded = ag.util.pad_to_size(img, (new_size[0], new_size[1],) + X.shape[3:])
             pad = [(new_size[i]-size[i])//2 for i in range(2)]
 
             angles = np.arange(0, 360, 360/ORI)
@@ -539,8 +540,12 @@ class OrientedGaussianPartsLayer(Layer):
 
             std_thresh = self._settings['std_thresh']
 
+            ag.info('Image #{}, collected {} patches and rejected {}'.format(
+                n, len(the_originals), len(the_rest)))
+
+
             for sample in range(samples_per_image):
-                TRIES = 200
+                TRIES = 1000
                 for tries in range(TRIES):
                     x, y = next(i_iter)
 
@@ -552,7 +557,7 @@ class OrientedGaussianPartsLayer(Layer):
                     XY = np.array([x, y, 1])[:, np.newaxis]
 
                     # Now, let's explore all orientations
-                    vispatch = np.zeros((ORI * POL,) + ps)
+                    vispatch = np.zeros((ORI * POL,) + ps + X.shape[3:])
 
                     br = False
                     for ori in range(ORI * POL):
@@ -571,6 +576,7 @@ class OrientedGaussianPartsLayer(Layer):
                         try:
                             vispatch[ori] = orig
                         except:
+                            #print(XY.T, p.T, all_img.shape, vispatch.shape, ori, orig.shape, selection)
                             br = True
                             break
 
@@ -619,9 +625,8 @@ class OrientedGaussianPartsLayer(Layer):
 
         if 'example_patches2' in self._train_info:
             vz.text('Training samples')
-            grid = ImageGrid(self._train_info['example_patches2'],
-                             vmin=0, vmax=1,
-                             border_color=(1, 1, 0))
+            grid = ColorImageGrid(self._train_info['example_patches2'],
+                                  border_color=(1, 1, 0))
             grid.save(vz.impath(), scale=3)
 
         vz.log('Loglikelihood threshold:', self._extra.get('loglike_thresh'))
@@ -631,7 +636,7 @@ class OrientedGaussianPartsLayer(Layer):
             vz.log(XX.shape)
             concats = [self._means[::self._n_orientations, np.newaxis], XX]
             means_and_exs = np.concatenate(concats, axis=1)
-            grid = ImageGrid(means_and_exs, border_color=0.8)
+            grid = ColorImageGrid(means_and_exs, border_color=0.8, vmin=None, vmax=None, vsym=True)
             grid.highlight(col=0, color=(1.0, 1.0, 0.5))
             grid.save(vz.impath(), scale=4)
 
@@ -669,15 +674,15 @@ class OrientedGaussianPartsLayer(Layer):
 
         # The canonical parts
         vz.text('Canonical parts')
-        grid = ImageGrid(self._means[::self._n_orientations])
+        grid = ColorImageGrid(self._means[::self._n_orientations], vmin=None,
+                              vmax=None, vsym=True)
         grid.save(vz.impath(), scale=10)
 
         # Parts (means)
         if self._n_orientations > 1:
             vz.text('Parts')
-            grid = ImageGrid(self._means,
-                             cols=self._n_orientations,
-                             )
+            grid = ColorImageGrid(self._means, cols=self._n_orientations,
+                                  vmin=None, vmax=None, vsym=True)
 
             grid.save(vz.impath(), scale=10)
 
@@ -692,16 +697,17 @@ class OrientedGaussianPartsLayer(Layer):
 
         # Variance
         if self._settings['covariance_type'] == 'diag':
-            vz.text('Variance')
-            variances = np.asarray([
-                [
-                    self._covar[k, p].reshape(self._part_shape)
-                    for p in range(self._n_orientations)
-                ] for k in range(self._num_true_parts)
-            ])
-            grid = ImageGrid(variances, vsym=True,
-                             border_color=0.5, cmap=cm.RdBu_r)
-            grid.save(vz.impath(), scale=5)
+            if 0:
+                vz.text('Variance')
+                variances = np.asarray([
+                    [
+                        self._covar[k, p].reshape(self._part_shape)
+                        for p in range(self._n_orientations)
+                    ] for k in range(self._num_true_parts)
+                ])
+                grid = ImageGrid(variances, vsym=True,
+                                 border_color=0.5, cmap=cm.RdBu_r)
+                grid.save(vz.impath(), scale=5)
 
         elif self._settings['covariance_type'] == 'diag-perm':
             vz.text('Variance')
@@ -767,7 +773,7 @@ class OrientedGaussianPartsLayer(Layer):
             vz.log('Min:', Hs.min(), 'Max:', Hs.max())
 
         # TODO: Temp
-        if 'bkg_mean' in self._extra:
+        if 'bkg_mean' in self._extra and False:
             vz.section('Background model')
             bkg_mean = self._extra['bkg_mean']
             bkg_covar = self._extra['bkg_covar']

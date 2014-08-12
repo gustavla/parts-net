@@ -20,7 +20,7 @@ class KMeansPartsLayer(Layer):
         self._whitening_matrix = None
 
         # Whitening and standardization epsilons
-        self.w_epsilon = 0.01
+        self.w_epsilon = 0.1
         self.epsilon = 10 / 255
 
     @property
