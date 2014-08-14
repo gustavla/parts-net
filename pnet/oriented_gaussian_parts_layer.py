@@ -71,6 +71,7 @@ def score_samples(X, means, weights, covars, covariance_type='diag'):
     lpr = (log_multivariate_normal_density(X, means, covars,
                                            covariance_type)
            + np.log(weights))
+
     logprob = logsumexp(lpr, axis=1)
     responsibilities = np.exp(lpr - logprob[:, np.newaxis])
     return logprob, responsibilities
@@ -135,6 +136,7 @@ class OrientedGaussianPartsLayer(Layer):
                               covariance_type='tied',
                               min_covariance=1e-3,
                               uniform_weights=True,
+                              channel_mode='together',
                               )
         self._extra = {}
 
@@ -216,36 +218,27 @@ class OrientedGaussianPartsLayer(Layer):
     def pos_matrix(self):
         return self.conv_pos_matrix(self._part_shape)
 
-    def extract(self, phi, data):
-        assert self.trained, "Must be trained before calling extract"
-        X = phi(data)
+    def __extract(self, X, covar, img_stds):
+        flatXij_patch = X.reshape((X.shape[0], -1))
+        #not_ok = (flatXij_patch.std(-1) <= self._settings['std_thresh'] * img_stds)
+        not_ok = (flatXij_patch.std(-1) <= self._settings['std_thresh'])
 
-        ps = self._part_shape
-        dim = (X.shape[1]-ps[0]+1, X.shape[2]-ps[1]+1)
+        if self._settings['standardize']:
+            flatXij_patch = self._standardize_patches(flatXij_patch)
 
-        feature_map = -np.ones((X.shape[0],) + dim, dtype=np.int64)
+        K = self._means.shape[0]
+        logprob, resp = score_samples(flatXij_patch,
+                                      self._means.reshape((K, -1)),
+                                      self._weights.ravel(),
+                                      covar,
+                                      self.gmm_cov_type,
+                                      )
+        C = resp.argmax(-1)
 
-        EX_N = min(10, len(X))
-        ex_log_probs = np.zeros((EX_N,) + dim)
-        ex_log_probs2 = []
+        #if not_ok.mean() < 0.5:
+            #import pdb; pdb.set_trace()
 
-        covar = self._prepare_covariance()
-
-        for i, j in itr.product(range(dim[0]), range(dim[1])):
-            Xij_patch = X[:, i:i+ps[0], j:j+ps[1]]
-            flatXij_patch = Xij_patch.reshape((X.shape[0], -1))
-
-            if self._settings['standardize']:
-                flatXij_patch = self._standardize_patches(flatXij_patch)
-
-            K = self._means.shape[0]
-            logprob, resp = score_samples(flatXij_patch,
-                                          self._means.reshape((K, -1)),
-                                          self._weights.ravel(),
-                                          covar,
-                                          self.gmm_cov_type,
-                                          )
-
+        if 0:
             bkg_means = self._extra['bkg_mean'].ravel()[np.newaxis]
             bkg_covars = self._extra['bkg_covar'][np.newaxis]
             bkg_weights = np.ones(1)
@@ -260,22 +253,55 @@ class OrientedGaussianPartsLayer(Layer):
             logratio = logprob - bkg_logprob
 
             not_ok = (logratio < self._settings['logratio_thresh'])
-            C = resp.argmax(-1)
 
             ex_log_probs[:, i, j] = logprob[:EX_N] - bkg_logprob[:EX_N]
-            feature_map[:, i, j] = C
+            #feature_map[:, i, j] = C
 
-            not_ok2 = (flatXij_patch.std(-1) <= self._settings['std_thresh'])
-            not_ok |= not_ok2
+        #not_ok |= not_ok2
 
-            feature_map[not_ok, i, j] = -1
+        #feature_map[not_ok, i, j] = -1
+        C[not_ok] = -1
 
-            ex_log_probs2.append(logratio[~not_ok2])
+        return C
 
-        self.__TEMP_ex_log_probs = ex_log_probs
-        self.__TEMP_ex_log_probs2 = np.concatenate(ex_log_probs2)
+    def extract(self, phi, data):
+        assert self.trained, "Must be trained before calling extract"
+        X = phi(data)
 
-        return (feature_map[..., np.newaxis], self._num_parts)
+        channel_mode = self._settings['channel_mode']
+        ps = self._part_shape
+
+        if channel_mode == 'together':
+            C = 1
+        elif channel_mode == 'separate':
+            C = X.shape[-1]
+        dim = (X.shape[1]-ps[0]+1, X.shape[2]-ps[1]+1, C)
+
+        feature_map = -np.ones((X.shape[0],) + dim, dtype=np.int64)
+
+        EX_N = min(10, len(X))
+        #ex_log_probs = np.zeros((EX_N,) + dim)
+        #ex_log_probs2 = []
+
+        covar = self._prepare_covariance()
+
+        #img_stds = ag.apply_once_over_axes(np.std, X, [1, 2, 3], keepdims=False)
+        img_stds = None
+
+        for i, j in itr.product(range(dim[0]), range(dim[1])):
+            Xij_patch = X[:, i:i+ps[0], j:j+ps[1]]
+            if channel_mode == 'together':
+                feature_map[:, i, j, 0] = self.__extract(Xij_patch, covar, img_stds)
+            elif channel_mode == 'separate':
+                for c in range(C):
+                    f = self.__extract(Xij_patch[...,c], covar, img_stds)
+                    f[f != -1] += c * self._num_parts
+                    feature_map[:, i, j, c] = f
+
+        #self.__TEMP_ex_log_probs = ex_log_probs
+        #self.__TEMP_ex_log_probs2 = np.concatenate(ex_log_probs2)
+
+        return (feature_map, self._num_parts * C)
 
     @property
     def trained(self):
@@ -284,11 +310,9 @@ class OrientedGaussianPartsLayer(Layer):
     # TODO: Needs work
     def _standardize_patches(self, flat_patches):
         means = np.apply_over_axes(np.mean, flat_patches, [1])
-        stds = np.apply_over_axes(np.std, flat_patches, [1])
+        variances = np.apply_over_axes(np.var, flat_patches, [1])
 
-        epsilon = 0.025 / 2
-
-        return (flat_patches - means) / (stds + epsilon)
+        return (flat_patches - means) / np.sqrt(variances + self.epsilon)
 
     def train(self, phi, data, y=None):
         X = phi(data)
@@ -297,6 +321,7 @@ class OrientedGaussianPartsLayer(Layer):
         self._train_info['example_patches2'] = raw_originals[:10]
 
         # Standardize them
+        old_raw_originals = raw_originals.copy()
         # TODO
         if self._settings['standardize']:
             mu = ag.apply_once_over_axes(np.mean, raw_originals, [1, 2, 3, 4])
@@ -304,6 +329,12 @@ class OrientedGaussianPartsLayer(Layer):
             raw_originals = (raw_originals - mu) / np.sqrt(variances + self.epsilon)
 
         self.train_from_samples(raw_originals, the_rest)
+
+        # TODO
+        f = self.extract(lambda x: x, old_raw_originals[:,0])
+        feat = f[0].ravel()
+        print('bincounts', np.bincount(feat[feat!=-1], minlength=f[1]))
+
         self.preprocess()
 
     @property
@@ -399,6 +430,8 @@ class OrientedGaussianPartsLayer(Layer):
         comps = mm.predict(Xflat)
         ag.info('Samples:', np.bincount(comps[:, 0]))
 
+        self._TMP_comps = comps
+
         # Example patches - initialize to NaN if component doesn't fill it up
         EX_N = 50
         ex_shape = (self._num_true_parts, EX_N) + self._part_shape + raw_originals.shape[4:]
@@ -418,6 +451,7 @@ class OrientedGaussianPartsLayer(Layer):
             self.rotate_indices(mm, ORI)
 
         means_shape = (mm.n_components * P,) + raw_originals.shape[2:]
+        print('means_shape', means_shape)
         self._means = mm.means_.reshape(means_shape)
         self._covar = mm.covars_
         if self._settings['uniform_weights']:
@@ -464,6 +498,8 @@ class OrientedGaussianPartsLayer(Layer):
         the_rest = []
         ag.info("Extracting patches from")
         ps = self._part_shape
+
+        channel_mode = self._settings['channel_mode']
 
         ORI = self._n_orientations
         POL = self._settings['polarities']
@@ -540,12 +576,13 @@ class OrientedGaussianPartsLayer(Layer):
 
             std_thresh = self._settings['std_thresh']
 
-            ag.info('Image #{}, collected {} patches and rejected {}'.format(
-                n, len(the_originals), len(the_rest)))
+            img_std = np.std(img_padded)
 
+            ag.info('Image #{}, collected {} patches and rejected {} (std={}'.format(
+                n, len(the_originals), len(the_rest), img_std))
 
             for sample in range(samples_per_image):
-                TRIES = 1000
+                TRIES = 10000
                 for tries in range(TRIES):
                     x, y = next(i_iter)
 
@@ -553,11 +590,21 @@ class OrientedGaussianPartsLayer(Layer):
                     sel0_inner = [0,
                                   slice(x+minus_ps[0]+fr, x+plus_ps[0]-fr),
                                   slice(y+minus_ps[1]+fr, y+plus_ps[1]-fr)]
+                    if channel_mode == 'separate':
+                        ii = rs.randint(X.shape[3])
+                        sel0_inner += [ii]
+
+                    from copy import copy
+                    sel1_inner = copy(sel0_inner)
+                    sel1_inner[0] = slice(None)
 
                     XY = np.array([x, y, 1])[:, np.newaxis]
 
                     # Now, let's explore all orientations
-                    vispatch = np.zeros((ORI * POL,) + ps + X.shape[3:])
+                    if channel_mode == 'together':
+                        vispatch = np.zeros((ORI * POL,) + ps + X.shape[3:])
+                    elif channel_mode == 'separate':
+                        vispatch = np.zeros((ORI * POL,) + ps + (1,))
 
                     br = False
                     for ori in range(ORI * POL):
@@ -572,11 +619,13 @@ class OrientedGaussianPartsLayer(Layer):
                                      slice(ip[1] + minus_ps[1],
                                            ip[1] + plus_ps[1])]
 
+                        if channel_mode == 'separate':
+                            selection += [slice(ii, ii+1)]
+
                         orig = all_img[selection]
                         try:
                             vispatch[ori] = orig
-                        except:
-                            #print(XY.T, p.T, all_img.shape, vispatch.shape, ori, orig.shape, selection)
+                        except ValueError:
                             br = True
                             break
 
@@ -592,7 +641,14 @@ class OrientedGaussianPartsLayer(Layer):
                     if POL == 2:
                         vispatch[ORI:] = np.roll(vispatch[ORI:], shift, axis=0)
 
-                    if all_img[sel0_inner].std() > std_thresh:
+                    #if all_img[sel0_inner].std() > img_std * std_thresh:
+                    #if all_img[sel0_inner].std() > std_thresh:
+                    all_stds = ag.apply_once_over_axes(np.std,
+                                                       all_img[sel1_inner],
+                                                       [1, 2],
+                                                       keepdims=False)
+                    #if np.median(all_stds) > std_thresh:
+                    if np.median(all_stds) > std_thresh:
                         the_originals.append(vispatch)
                         if len(the_originals) % 500 == 0:
                             ag.info('Samples {}/{}'.format(len(the_originals),
@@ -630,6 +686,8 @@ class OrientedGaussianPartsLayer(Layer):
             grid.save(vz.impath(), scale=3)
 
         vz.log('Loglikelihood threshold:', self._extra.get('loglike_thresh'))
+
+        vz.log('Part shape:', self._means.shape)
 
         if self._train_info is not None:
             XX = self._train_info['example_patches']

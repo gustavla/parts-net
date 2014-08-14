@@ -127,7 +127,7 @@ class SVMClassificationLayer(SupervisedLayer):
                                     grid.save(vz.impath())
 
                                     fig = plt.figure()
-                                    #cc = ag.apply_once_over_axes(Xflat[vv & (y == c)], [1, 2, 3], remove_axes=True)
+                                    #cc = ag.apply_once_over_axes(Xflat[vv & (y == c)], [1, 2, 3], keepdims=False)
                                     plt.hist(cc)
                                     plt.savefig(vz.impath(ext='svg'))
                                     fig.close()

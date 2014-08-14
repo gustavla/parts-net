@@ -5,6 +5,8 @@ import sys
 import os
 import pnet
 import time
+import pnet.data
+
 
 if __name__ == '__main__':
     ag.set_verbose(True)
@@ -33,24 +35,12 @@ if __name__ == '__main__':
     save_file = args.save_file
     seed = args.seed
 
-    if args.data[0] == ':':
-        if args.data == ':small-norb-training':
-            data, _ = ag.io.load_small_norb('training')
-            data = data.transpose(0, 2, 3, 1).astype(np.float64) / 255
-        elif args.data == ':cifar-10-training':
-            data = np.concatenate([ag.io.load_cifar_10('training', offset=10000*b)[0]
-                                      for b in range(5)], axis=0)
-            data = data.transpose(0, 2, 3, 1).astype(np.float64) / 255
-        else:
-            raise ValueError('Unknown data: {}'.format(args.data))
-    else:
-        data = ag.io.load(args.data)
+    data = pnet.data.load_data(args.data)
     unsup_training_times = []
     sup_training_times = []
     testing_times = []
     error_rates = []
     all_num_parts = []
-
 
     for training_seed in [seed]:
 
@@ -67,14 +57,17 @@ if __name__ == '__main__':
                           n_init=5,
                           standardize=True,
                           samples_per_image=100,
+                          #max_samples=10000,
                           max_samples=10000,
-                          uniform_weights=True,
+                          uniform_weights=False,
                           max_covariance_samples=None,
                           covariance_type='diag',
-                          min_covariance=0.0025,
+                          min_covariance=0.01,
                           logratio_thresh=-np.inf,
-                          std_thresh=0.05,
+                          std_thresh=0.01,
+                          #std_thresh=0.75,
                           std_thresh_frame=0,
+                          channel_mode='separate',
                           #rotation_spreading_radius=0,
                           )
 
@@ -83,15 +76,17 @@ if __name__ == '__main__':
                                                 part_shape=(3, 3),
                                                 settings=settings),
                 pnet.PoolingLayer(shape=(2, 2), strides=(1, 1)),
-                pnet.OrientedPartsLayer(n_parts=1000,
+            ]
+            layers += [
+                pnet.OrientedPartsLayer(n_parts=100,
                                         n_orientations=1,
                                         part_shape=(part_size, part_size),
                                         settings=dict(outer_frame=1,
                                                       seed=training_seed,
                                                       threshold=2,
                                                       samples_per_image=20,
-                                                      #max_samples=30000,
-                                                      max_samples=3000,
+                                                      max_samples=30000,
+                                                      #max_samples=3000,
                                                       #max_samples=30000,
                                                       #train_limit=10000,
                                                       min_prob=0.00005,)),
