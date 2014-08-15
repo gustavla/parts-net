@@ -50,6 +50,12 @@ class PartsNet(Layer):
     def layers(self):
         return self._layers
 
+    @layers.setter
+    def layers(self, value):
+        self._layers = value
+        self._prepare_extract_funcs()
+        return self._layers
+
     @property
     def trained(self):
         return self._trained

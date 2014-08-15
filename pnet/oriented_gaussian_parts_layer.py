@@ -127,6 +127,7 @@ class OrientedGaussianPartsLayer(Layer):
                               n_init=1,
                               seed=0,
                               standardize=True,
+                              standardization_epsilon=0.001,
                               samples_per_image=40,
                               max_samples=np.inf,
                               max_covariance_samples=None,
@@ -154,8 +155,6 @@ class OrientedGaussianPartsLayer(Layer):
         self._weights = None
 
         self._visparts = None
-
-        self.epsilon = 10 / 255
 
     @property
     def num_parts(self):
@@ -220,7 +219,6 @@ class OrientedGaussianPartsLayer(Layer):
 
     def __extract(self, X, covar, img_stds):
         flatXij_patch = X.reshape((X.shape[0], -1))
-        #not_ok = (flatXij_patch.std(-1) <= self._settings['std_thresh'] * img_stds)
         not_ok = (flatXij_patch.std(-1) <= self._settings['std_thresh'])
 
         if self._settings['standardize']:
@@ -312,7 +310,8 @@ class OrientedGaussianPartsLayer(Layer):
         means = np.apply_over_axes(np.mean, flat_patches, [1])
         variances = np.apply_over_axes(np.var, flat_patches, [1])
 
-        return (flat_patches - means) / np.sqrt(variances + self.epsilon)
+        epsilon = self._settings['standardization_epsilon']
+        return (flat_patches - means) / np.sqrt(variances + epsilon)
 
     def train(self, phi, data, y=None):
         X = phi(data)
@@ -322,11 +321,11 @@ class OrientedGaussianPartsLayer(Layer):
 
         # Standardize them
         old_raw_originals = raw_originals.copy()
-        # TODO
         if self._settings['standardize']:
             mu = ag.apply_once_over_axes(np.mean, raw_originals, [1, 2, 3, 4])
             variances = ag.apply_once_over_axes(np.var, raw_originals, [1, 2, 3, 4])
-            raw_originals = (raw_originals - mu) / np.sqrt(variances + self.epsilon)
+            epsilon = self._settings['standardization_epsilon']
+            raw_originals = (raw_originals - mu) / np.sqrt(variances + epsilon)
 
         self.train_from_samples(raw_originals, the_rest)
 

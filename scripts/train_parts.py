@@ -1,10 +1,6 @@
 import numpy as np
 import amitgroup as ag
-import itertools as itr
-import sys
-import os
 import pnet
-import time
 import pnet.data
 
 
@@ -12,12 +8,7 @@ if __name__ == '__main__':
     ag.set_verbose(True)
     import argparse
     parser = argparse.ArgumentParser()
-    #parser.add_argument('seed', metavar='<seed>', type=int, help='Random seed')
-    #parser.add_argument('param', metavar='<param>', type=string)
-
     parser.add_argument('size', metavar='<part size>', type=int)
-    #parser.add_argument('orientations', metavar='<num orientations>', type=int)
-    #parser.add_argument('numParts', metavar='<numPart param>', type=int, help='number of parts')
     parser.add_argument('data', metavar='<data file>',
                         type=str,
                         help='Filename of data file')
@@ -26,16 +17,18 @@ if __name__ == '__main__':
                         type=argparse.FileType('wb'),
                         help='Filename of savable model file')
     parser.add_argument('--factor', '-f', type=float)
+    parser.add_argument('--count', '-c', type=int)
     args = parser.parse_args()
 
     part_size = args.size
-    #num_orientations = args.orientations
-    #numParts = args.numParts
-    #saveFile = args.saveFile
     save_file = args.save_file
     seed = args.seed
 
     data = pnet.data.load_data(args.data)
+    data = data[:args.count]
+    if data.ndim == 3:
+        data = data[..., np.newaxis]
+    print('Using', args.count)
     unsup_training_times = []
     sup_training_times = []
     testing_times = []
@@ -52,24 +45,22 @@ if __name__ == '__main__':
             ]
 
         if 1:
-            settings=dict(n_iter=10,
-                          seed=0,
-                          n_init=5,
-                          standardize=True,
-                          samples_per_image=100,
-                          #max_samples=10000,
-                          max_samples=10000,
-                          uniform_weights=False,
-                          max_covariance_samples=None,
-                          covariance_type='diag',
-                          min_covariance=0.01,
-                          logratio_thresh=-np.inf,
-                          std_thresh=0.01,
-                          #std_thresh=0.75,
-                          std_thresh_frame=0,
-                          channel_mode='separate',
-                          #rotation_spreading_radius=0,
-                          )
+            settings = dict(n_iter=10,
+                            seed=0,
+                            n_init=5,
+                            standardize=True,
+                            standardization_epsilon=0.001,
+                            samples_per_image=100,
+                            max_samples=10000,
+                            uniform_weights=False,
+                            max_covariance_samples=None,
+                            covariance_type='diag',
+                            min_covariance=0.0025,
+                            logratio_thresh=-np.inf,
+                            std_thresh=0.005,
+                            std_thresh_frame=0,
+                            channel_mode='together',
+                            )
 
             layers += [
                 pnet.OrientedGaussianPartsLayer(n_parts=2, n_orientations=8,
@@ -78,17 +69,14 @@ if __name__ == '__main__':
                 pnet.PoolingLayer(shape=(2, 2), strides=(1, 1)),
             ]
             layers += [
-                pnet.OrientedPartsLayer(n_parts=100,
+                pnet.OrientedPartsLayer(n_parts=400,
                                         n_orientations=1,
                                         part_shape=(part_size, part_size),
                                         settings=dict(outer_frame=1,
                                                       seed=training_seed,
                                                       threshold=2,
                                                       samples_per_image=20,
-                                                      max_samples=30000,
-                                                      #max_samples=3000,
-                                                      #max_samples=30000,
-                                                      #train_limit=10000,
+                                                      max_samples=200000,
                                                       min_prob=0.00005,)),
 
             ]
@@ -191,7 +179,4 @@ if __name__ == '__main__':
         net.train(lambda _: _, data)
         print('Done.')
 
-
-
         net.save(save_file)
-

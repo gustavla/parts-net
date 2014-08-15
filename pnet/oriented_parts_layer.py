@@ -124,25 +124,7 @@ class OrientedPartsLayer(Layer):
 
     def train(self, phi, data, y=None):
         raw_patches, raw_originals = self._get_patches(phi, data)
-
         assert len(raw_patches), "No patches found"
-
-        if 0:
-            from vzlog.default import vz
-            grid = ImageGrid(raw_originals[:100])
-            grid.save(vz.impath(), scale=3)
-            vz.flush()
-
-            vz.section('The edges')
-
-            from pylab import cm
-
-            for i in range(5):
-                vz.log(i)
-                grid = ImageGrid(raw_patches[i].transpose((0, 3, 1, 2)),
-                                 cmap=cm.cool)
-                grid.save(vz.impath(), scale=3)
-            vz.flush()
 
         return self.train_from_samples(raw_patches, raw_originals)
 
@@ -254,7 +236,8 @@ class OrientedPartsLayer(Layer):
             new_size = [new_side + (new_side - data.shape[1]) % 2,
                         new_side + (new_side - data.shape[2]) % 2]
 
-            data_padded = ag.util.pad_to_size(data, (-1, new_size[0], new_size[1]))
+            pad_shape = (-1, new_size[0], new_size[1])
+            data_padded = ag.util.pad_to_size(data, pad_shape)
 
             angles = np.arange(0, 360, 360/ORI)
 
@@ -323,7 +306,8 @@ class OrientedPartsLayer(Layer):
 
         max_samples = self._settings.get('max_samples', np.inf)
 
-        patches_sh = (max_samples, self._num_orientations) + self._part_shape + (E,)  # TODO: 16
+        patches_sh = ((max_samples, self._num_orientations) +
+                      self._part_shape + (E,))
         the_patches = np.zeros(patches_sh)
         orig_sh = (max_samples, self._num_orientations) + (3, 3)
         the_originals = np.zeros(orig_sh)
@@ -333,18 +317,22 @@ class OrientedPartsLayer(Layer):
 
         for b in itr.count(0):
             data_subset = data[b*batch_size:(b+1)*batch_size]
+            if data_subset.shape[0] == 0:
+                break
             data_padded = ag.util.pad_to_size(data_subset,
                     (-1, new_size[0], new_size[1],) + data.shape[3:])
 
-            data_arranged = data_padded.transpose(1, 2, 0, 3).reshape(data_padded.shape[1:3] + (-1,))
-
+            ims = data_padded.transpose(1, 2, 0, 3)
+            ims = data_arr.reshape(data_padded.shape[1:3] + (-1,))
             all_data = np.asarray([
-                transform.rotate(data_arranged,
+                transform.rotate(ims,
                                  angle,
                                  resize=False,
                                  mode='nearest')
                 for angle in angles])
-            all_data = all_data.reshape(all_data.shape[:3] + (-1, data.shape[3]))
+
+            sh = all_data.shape[:3] + (-1, data.shape[3])
+            all_data = all_data.reshape(sh)
             all_data = all_data.transpose(3, 0, 1, 2, 4)
 
             # Add inverted polarity too
@@ -525,7 +513,7 @@ class OrientedPartsLayer(Layer):
         gpu_parts = (gpu_parts)[:, :, ::-1, ::-1]
 
         gpu_logits = np.log(gpu_parts / (1 - gpu_parts))
-        gpu_rest = np.log(1 - gpu_logits).sum(1).sum(1).sum(1)
+        gpu_rest = np.log(1 - gpu_parts).sum(1).sum(1).sum(1)
 
         s_logits = theano.shared(gpu_logits, name='logits')
         s_rest = theano.shared(gpu_rest, name='rest')
