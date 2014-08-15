@@ -323,7 +323,7 @@ class OrientedPartsLayer(Layer):
                     (-1, new_size[0], new_size[1],) + data.shape[3:])
 
             ims = data_padded.transpose(1, 2, 0, 3)
-            ims = data_arr.reshape(data_padded.shape[1:3] + (-1,))
+            ims = ims.reshape(data_padded.shape[1:3] + (-1,))
             all_data = np.asarray([
                 transform.rotate(ims,
                                  angle,
