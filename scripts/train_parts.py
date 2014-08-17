@@ -58,10 +58,10 @@ if __name__ == '__main__':
                             std_thresh_frame=0,
                             channel_mode='separate',
 
-                            normalize_globally=True,
+                            normalize_globally=False,
                             min_covariance=0.1,
-                            std_thresh=0.1,
-                            standardization_epsilon=0.01,
+                            std_thresh=0.0001,
+                            standardization_epsilon=0.001,
                             )
 
             layers += [
