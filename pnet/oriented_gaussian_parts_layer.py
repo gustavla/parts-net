@@ -138,6 +138,7 @@ class OrientedGaussianPartsLayer(Layer):
                               min_covariance=1e-3,
                               uniform_weights=True,
                               channel_mode='together',
+                              normalize_globally=False,
                               )
         self._extra = {}
 
@@ -219,7 +220,10 @@ class OrientedGaussianPartsLayer(Layer):
 
     def __extract(self, X, covar, img_stds):
         flatXij_patch = X.reshape((X.shape[0], -1))
-        not_ok = (flatXij_patch.std(-1) <= self._settings['std_thresh'])
+        if self._settings['normalize_globally']:
+            not_ok = (flatXij_patch.std(-1) / img_stds <= self._settings['std_thresh'])
+        else:
+            not_ok = (flatXij_patch.std(-1) <= self._settings['std_thresh'])
 
         if self._settings['standardize']:
             flatXij_patch = self._standardize_patches(flatXij_patch)
@@ -283,8 +287,8 @@ class OrientedGaussianPartsLayer(Layer):
 
         covar = self._prepare_covariance()
 
-        #img_stds = ag.apply_once_over_axes(np.std, X, [1, 2, 3], keepdims=False)
-        img_stds = None
+        img_stds = ag.apply_once_over_axes(np.std, X, [1, 2, 3], keepdims=False)
+        #img_stds = None
 
         for i, j in itr.product(range(dim[0]), range(dim[1])):
             Xij_patch = X[:, i:i+ps[0], j:j+ps[1]]
@@ -640,14 +644,20 @@ class OrientedGaussianPartsLayer(Layer):
                     if POL == 2:
                         vispatch[ORI:] = np.roll(vispatch[ORI:], shift, axis=0)
 
-                    #if all_img[sel0_inner].std() > img_std * std_thresh:
                     #if all_img[sel0_inner].std() > std_thresh:
                     all_stds = ag.apply_once_over_axes(np.std,
                                                        all_img[sel1_inner],
                                                        [1, 2],
                                                        keepdims=False)
                     #if np.median(all_stds) > std_thresh:
-                    if np.median(all_stds) > std_thresh:
+                    #if np.median(all_stds) > std_thresh:
+
+                    if self._settings['normalize_globally']:
+                        ok = np.median(all_stds) / img_std > std_thresh
+                    else:
+                        ok = np.median(all_stds) > std_thresh
+
+                    if ok:
                         the_originals.append(vispatch)
                         if len(the_originals) % 500 == 0:
                             ag.info('Samples {}/{}'.format(len(the_originals),

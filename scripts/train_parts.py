@@ -49,26 +49,28 @@ if __name__ == '__main__':
                             seed=0,
                             n_init=5,
                             standardize=True,
-                            standardization_epsilon=0.001,
                             samples_per_image=100,
                             max_samples=10000,
                             uniform_weights=False,
                             max_covariance_samples=None,
                             covariance_type='diag',
-                            min_covariance=0.0025,
                             logratio_thresh=-np.inf,
-                            std_thresh=0.005,
                             std_thresh_frame=0,
-                            channel_mode='together',
+                            channel_mode='separate',
+
+                            normalize_globally=True,
+                            min_covariance=0.1,
+                            std_thresh=0.1,
+                            standardization_epsilon=0.01,
                             )
 
             layers += [
                 pnet.OrientedGaussianPartsLayer(n_parts=2, n_orientations=8,
                                                 part_shape=(3, 3),
                                                 settings=settings),
-                pnet.PoolingLayer(shape=(2, 2), strides=(1, 1)),
+                pnet.PoolingLayer(shape=(1, 1), strides=(1, 1)),
             ]
-            layers += [
+            layers += 0*[
                 pnet.OrientedPartsLayer(n_parts=400,
                                         n_orientations=1,
                                         part_shape=(part_size, part_size),

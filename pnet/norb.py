@@ -11,7 +11,7 @@ def _test(Xs, ys, net, n_classes):
 def train_and_test(net, samples_per_class=None, seed=0, limit=None):
     # Load training data
     print('Loading data')
-    S = 1000
+    S = 500
     def batch_loader(dataset, count):
         for n in itr.count(0):
             if count is None:
