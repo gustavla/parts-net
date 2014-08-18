@@ -139,6 +139,7 @@ class OrientedGaussianPartsLayer(Layer):
                               uniform_weights=True,
                               channel_mode='together',
                               normalize_globally=False,
+                              code_bkg=False,
                               )
         self._extra = {}
 
@@ -262,7 +263,12 @@ class OrientedGaussianPartsLayer(Layer):
         #not_ok |= not_ok2
 
         #feature_map[not_ok, i, j] = -1
-        C[not_ok] = -1
+        if self._settings['code_bkg']:
+            bkg_part = self.num_parts
+        else:
+            bkg_part = -1
+
+        C[not_ok] = bkg_part
 
         return C
 
@@ -303,7 +309,10 @@ class OrientedGaussianPartsLayer(Layer):
         #self.__TEMP_ex_log_probs = ex_log_probs
         #self.__TEMP_ex_log_probs2 = np.concatenate(ex_log_probs2)
 
-        return (feature_map, self._num_parts * C)
+        num_features = self._num_parts * C
+        if self._settings['code_bkg']:
+            num_features += 1
+        return (feature_map, num_features)
 
     @property
     def trained(self):

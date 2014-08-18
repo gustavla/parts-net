@@ -60,17 +60,18 @@ if __name__ == '__main__':
 
                             normalize_globally=False,
                             min_covariance=0.1,
-                            std_thresh=0.0001,
+                            std_thresh=0.002,
                             standardization_epsilon=0.001,
+                            code_bkg=True,
                             )
 
             layers += [
                 pnet.OrientedGaussianPartsLayer(n_parts=2, n_orientations=8,
                                                 part_shape=(3, 3),
                                                 settings=settings),
-                pnet.PoolingLayer(shape=(1, 1), strides=(1, 1)),
+                pnet.PoolingLayer(shape=(2, 1), strides=(1, 1)),
             ]
-            layers += 0*[
+            layers += [
                 pnet.OrientedPartsLayer(n_parts=400,
                                         n_orientations=1,
                                         part_shape=(part_size, part_size),
