@@ -69,7 +69,7 @@ if __name__ == '__main__':
                 pnet.OrientedGaussianPartsLayer(n_parts=2, n_orientations=8,
                                                 part_shape=(3, 3),
                                                 settings=settings),
-                pnet.PoolingLayer(shape=(2, 1), strides=(1, 1)),
+                pnet.PoolingLayer(shape=(2, 2), strides=(1, 1)),
             ]
             layers += [
                 pnet.OrientedPartsLayer(n_parts=400,
