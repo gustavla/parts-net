@@ -12,7 +12,7 @@ from amitgroup.plot import ImageGrid
 def _extract_batch(im, settings, num_parts, num_orientations, part_shape,
                    parts, extract_func, dtype):
     # TODO: Change the whole framework to this format
-    gpu_im = im.transpose((0, 3, 1, 2)).astype(dtype)
+    gpu_im = im.transpose((0, 3, 1, 2)).astype(dtype, copy=False)
     res = extract_func(gpu_im)
     imp = ag.util.pad(im, (0, 1, 1, 0), value=0)[:, :-1, :-1]
     cum_im = imp.sum(-1).cumsum(1).cumsum(2)
@@ -509,7 +509,7 @@ class OrientedPartsLayer(Layer):
         # Create Theano convolution function
         s_input = T.tensor4(name='input')
 
-        gpu_parts = self._parts.transpose((0, 3, 1, 2)).astype(s_input.dtype)
+        gpu_parts = self._parts.transpose((0, 3, 1, 2)).astype(s_input.dtype, copy=False)
         gpu_parts = (gpu_parts)[:, :, ::-1, ::-1]
 
         gpu_logits = np.log(gpu_parts / (1 - gpu_parts))

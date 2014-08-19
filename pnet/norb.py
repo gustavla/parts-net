@@ -20,7 +20,8 @@ def train_and_test(net, samples_per_class=None, seed=0, limit=None):
                 count0 = max(min(S, count - S * n), 0)
 
             test_X = ag.io.load_small_norb(dataset, offset=S * n,
-                                           count=count0, ret='x')
+                                           count=count0, ret='x',
+                                           x_dtype=np.float32)
             if test_X.size == 0:
                 break
             test_X = test_X.transpose(0, 2, 3, 1)
