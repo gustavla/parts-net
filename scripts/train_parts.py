@@ -44,7 +44,7 @@ if __name__ == '__main__':
                 pnet.ResizeLayer(factor=args.factor),
             ]
 
-        if 1:
+        if 0:
             settings = dict(n_iter=10,
                             seed=0,
                             n_init=5,
@@ -124,15 +124,14 @@ if __name__ == '__main__':
                 pnet.KMeansPartsLayer(400, (part_size, part_size), settings=dict(
                                                           seed=training_seed,
                                                           n_per_image=100,
-                                                          #n_samples=600000,
-                                                          #n_samples=200000,
-                                                          n_samples=100000,
-                                                          #n_samples=20000,
-                                                          #n_samples=3000,
+                                                          #n_samples=100000,
+                                                          n_samples=10000,
                                                           n_init=1,
                                                           max_iter=300,
                                                           n_jobs=1,
                                                           random_centroids=False,
+                                                          code_bkg=False,
+                                                          std_thresh=0.01,
                                                           )),
             ]
 

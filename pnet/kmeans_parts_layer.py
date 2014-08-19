@@ -15,13 +15,32 @@ class KMeansPartsLayer(Layer):
         self._part_shape = part_shape
         self._settings = settings
         self._train_info = {}
-        self._extra = {}
         self._parts = None
         self._whitening_matrix = None
 
+        self._settings = dict(whitening_epsilon=0.1,
+                              standardization_epsilon=10 / 255,
+                              n_init=1,
+                              max_iter=300,
+                              seed=0,
+                              n_jobs=1,
+                              n_samples=100000,
+                              n_per_image=200,
+                              code_bkg=False,
+                              random_centroids=False,
+                              std_thresh=0,
+                              )
+        self._extra = {}
+
+        for k, v in settings.items():
+            if k not in self._settings:
+                raise ValueError("Unknown settings: {}".format(k))
+            else:
+                self._settings[k] = v
+
         # Whitening and standardization epsilons
-        self.w_epsilon = 0.1
-        self.epsilon = 10 / 255
+        self.w_epsilon = self._settings['whitening_epsilon']
+        self.epsilon = self._settings['standardization_epsilon']
 
     @property
     def num_parts(self):
@@ -43,32 +62,30 @@ class KMeansPartsLayer(Layer):
 
         dim = (X.shape[1]-ps[0]+1, X.shape[2]-ps[1]+1)
 
-        feature_map = -np.ones((X.shape[0],) + dim, dtype=np.int64)
+        if self._settings['code_bkg']:
+            bkg_part = self.num_parts
+            n_features = self.num_parts + 1
+        else:
+            bkg_part = -1
+            n_features = self.num_parts
+
+        feature_map = np.empty((X.shape[0],) + dim, dtype=np.int64)
+        feature_map[:] = bkg_part
 
         with ag.Timer('extracting'):
             for i, j in itr.product(range(dim[0]), range(dim[1])):
                 Xij_patch = X[:, i:i+ps[0], j:j+ps[1]]
                 flatXij_patch = Xij_patch.reshape((X.shape[0], -1))
 
-                ok = (flatXij_patch.std(-1) > self.threshold)
+                ok = (flatXij_patch.std(-1) > self._settings['std_thresh'])
 
-                if 0 and 'classifier' in self._extra:
-                    flatXij_patch[ok] = self._standardize_patches(flatXij_patch[ok])
-                    flatXij_patch[ok] = self.whiten_patches(flatXij_patch[ok])
-                    feature_map[ok, i, j] = self._extra['classifier'].predict(flatXij_patch[ok])
-                else:
-                    feature_map[ok, i, j] = self._extract_func(flatXij_patch[ok].astype(self._dtype))
-                    #feature_map[ok, i, j] = self._extract_func(flatXij_patch[ok])
+                XX = flatXij_patch[ok].astype(self._dtype)
+                feature_map[ok, i, j] = self._extract_func(XX)
 
-        return (feature_map[..., np.newaxis], self._num_parts)
-
+        return (feature_map[..., np.newaxis], n_features)
     @property
     def trained(self):
         return self._parts is not None
-
-    @property
-    def threshold(self):
-        return -1  # No threshold
 
     def _standardize_patches(self, flat_patches):
         #means = ag.apply_once_over_axes(np.mean, patches, [1, 2])
@@ -85,8 +102,8 @@ class KMeansPartsLayer(Layer):
 
     def train(self, phi, data, y=None):
         assert y is None
-        n_samples = self._settings.get('n_samples', 100000)
-        n_per_image = self._settings.get('n_per_image', 200)
+        n_samples = self._settings['n_samples']
+        n_per_image = self._settings['n_per_image']
 
         n_images = n_samples // n_per_image
 
@@ -98,23 +115,16 @@ class KMeansPartsLayer(Layer):
         # Get patches
         gen = ag.image.extract_patches(X, self._part_shape,
                                        samples_per_image=n_per_image,
-                                       seed=self._settings.get('seed', 0))
+                                       seed=self._settings['seed'])
 
 
         ag.info('Extracting patches 2')
         # Filter
-        #gen = filter(lambda x: x.std() > self.threshold, gen)
+        th = self._settings['std_thresh']
+        if th > 0:
+            gen = (x for x in gen if x.std() > th)
 
         rs = np.random.RandomState(0)
-
-        if 0:
-            def func_ok(x):
-                if rs.uniform() < 0.2:
-                    return True
-                else:
-                    return x.std() > 0.02
-
-            gen = filter(func_ok, gen)
 
         # Now request the patches and convert them to floats
         #patches = np.asarray(list(itr.islice(gen, n_samples)), dtype=np.float64) / 255
@@ -160,8 +170,8 @@ class KMeansPartsLayer(Layer):
 
         plot('Whitened patches')
 
-        if self._settings.get('random_centroids'):
-            rs = np.random.RandomState(self._settings.get('seed', 0))
+        if self._settings['random_centroids']:
+            rs = np.random.RandomState(self._settings['seed'])
             sh = (self._num_parts,) + self._part_shape
             self._parts = rs.normal(0, 1, size=sh)
             #self._parts /= ag.apply_once_over_axes(np.mean, self._parts, [1, 2])
@@ -173,11 +183,11 @@ class KMeansPartsLayer(Layer):
             #cl = MiniBatchKMeans(
             cl = KMeans(
                         n_clusters=self._num_parts,
-                        n_init=self._settings.get('n_init', 1),
-                        max_iter=self._settings.get('max_iter', 300),
-                        random_state=self._settings.get('seed', 0),
+                        n_init=self._settings['n_init'],
+                        max_iter=self._settings['max_iter'],
+                        random_state=self._settings['seed'],
                         #batch_size=50000,
-                        n_jobs=self._settings.get('n_jobs', 1),
+                        n_jobs=self._settings['n_jobs'],
                         )
 
             ag.info('Training', self._num_parts, 'K-means parts')
@@ -185,7 +195,6 @@ class KMeansPartsLayer(Layer):
             ag.info('Done.')
 
             self._parts = cl.cluster_centers_.reshape((-1,) + patches.shape[1:])
-            self._extra['classifier'] = cl
 
             vz.section('Parts')
 
