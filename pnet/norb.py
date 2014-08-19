@@ -23,7 +23,6 @@ def train_and_test(net, samples_per_class=None, seed=0, limit=None):
                                            count=count0, ret='x')
             if test_X.size == 0:
                 break
-            test_X = test_X.astype(np.float64) / 255.0
             test_X = test_X.transpose(0, 2, 3, 1)
             yield test_X
 
@@ -83,7 +82,6 @@ def train_and_test(net, samples_per_class=None, seed=0, limit=None):
         if test_X.size == 0:
             break
 
-        test_X = test_X.astype(np.float64) / 255.0
         test_X = test_X.transpose(0, 2, 3, 1)
 
         BATCHES = max(1, len(test_X) // 5000)
