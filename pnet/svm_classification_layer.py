@@ -66,9 +66,12 @@ class SVMClassificationLayer(SupervisedLayer):
 
                 Xflat = (Xflat - means) / np.sqrt(variances + self.epsilon)
 
-            if self._penalty is None:
+            if self._penalty is None or isinstance(self._penalty, np.ndarray):
                 # Cross-validate the penalty
-                Cs = 10**np.linspace(0, -4, 10)
+                if isinstance(self._penalty, np.ndarray):
+                    Cs = self._penalty
+                else:
+                    Cs = 10**np.linspace(0, -4, 10)
                 avg_scores = np.zeros(len(Cs))
                 for i, C in enumerate(Cs):
                     clf = LinearSVC(C=C, random_state=seed)

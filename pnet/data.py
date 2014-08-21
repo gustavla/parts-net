@@ -9,9 +9,9 @@ def load_data(filename):
             data = ag.io.load_small_norb('training', ret='x', x_dtype=np.float32)
             data = data.transpose(0, 2, 3, 1)
         elif filename == ':cifar-10-training':
-            data = np.concatenate([ag.io.load_cifar_10('training', offset=10000*b)[0]
+            data = np.concatenate([ag.io.load_cifar_10('training', ret='x', offset=10000*b)
                                       for b in range(5)], axis=0)
-            data = data.transpose(0, 2, 3, 1).astype(np.float64) / 255
+            data = data.transpose(0, 2, 3, 1)
         else:
             raise ValueError('Unknown data: {}'.format(filename))
     else:
