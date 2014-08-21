@@ -18,8 +18,9 @@ def resize(im, f):
 
 @Layer.register('resize-layer')
 class ResizeLayer(Layer):
-    def __init__(self, factor=1.0):
+    def __init__(self, factor=1.0, make_gray=False):
         self._factor = factor
+        self._make_gray = make_gray
 
     @property
     def pos_matrix(self):
@@ -29,17 +30,18 @@ class ResizeLayer(Layer):
         X = phi(data)
         if self._factor == 1.0:
             if X.dtype == np.uint8:
-                X_resized = X.astype(np.float64) / 255
-            else:
-                X_resized = X
+                X = X.astype(np.float64) / 255
         else:
-            X_resized = np.asarray([resize(im, self._factor) for im in X])
+            X = np.asarray([resize(im, self._factor) for im in X])
 
         # TODO: New stuff, maybe move
-        if X_resized.ndim == 3:
-            return X_resized[...,np.newaxis]
-        else:
-            return X_resized
+        if X.ndim == 3:
+            X = X[...,np.newaxis]
+
+        if self._make_gray:
+            X = X.mean(-1)[...,np.newaxis]
+
+        return X
 
     def __repr__(self):
         return "ResizeLayer(factor={})".format(self._factor)
@@ -47,9 +49,10 @@ class ResizeLayer(Layer):
     def save_to_dict(self):
         d = {}
         d['factor'] = self._factor
+        d['make_gray'] = self._make_gray
         return d
 
     @classmethod
     def load_from_dict(cls, d):
-        obj = cls(d['factor'])
+        obj = cls(d['factor'], make_gray=d['make_gray'])
         return obj
