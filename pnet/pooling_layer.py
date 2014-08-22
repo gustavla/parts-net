@@ -49,6 +49,7 @@ class PoolingLayer(Layer):
         elif self._operation == 'sum':
             from pnet.cyfuncs import index_map_sum_pooling_multi as poolf
             feature_map = poolf(X, F, shape, strides)
+
         else:
             raise ValueError('Unknown pooling operation: {}'.format(
                              self._operation))
@@ -59,10 +60,14 @@ class PoolingLayer(Layer):
 
     @property
     def pos_matrix(self):
-        S = pnet.matrix.scale(1 / self._strides[0], 1 / self._strides[1])
-        T = pnet.matrix.translation(-(self._shape[0] - 1) / 2,
-                                    -(self._shape[1] - 1) / 2)
-        return np.dot(S, T)
+        if self._final_shape is not None:
+            # TODO: This doesn't work
+            return pnet.matrix.scale(1.0, 1.0)
+        else:
+            S = pnet.matrix.scale(1 / self._strides[0], 1 / self._strides[1])
+            T = pnet.matrix.translation(-(self._shape[0] - 1) / 2,
+                                        -(self._shape[1] - 1) / 2)
+            return np.dot(S, T)
 
     def _vzlog_output_(self, vz):
         import pylab as plt
