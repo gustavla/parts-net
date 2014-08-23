@@ -140,6 +140,7 @@ class OrientedGaussianPartsLayer(Layer):
                               channel_mode='together',
                               normalize_globally=False,
                               code_bkg=False,
+                              whitening_epsilon=None,
                               )
         self._extra = {}
 
@@ -157,6 +158,9 @@ class OrientedGaussianPartsLayer(Layer):
         self._weights = None
 
         self._visparts = None
+        self._whitening_matrix = None
+
+        self.w_epsilon = self._settings['whitening_epsilon']
 
     @property
     def num_parts(self):
@@ -226,6 +230,8 @@ class OrientedGaussianPartsLayer(Layer):
         else:
             not_ok = (flatXij_patch.std(-1) <= self._settings['std_thresh'])
 
+        flatXij_patch = self.whiten_patches(flatXij_patch)
+
         if self._settings['standardize']:
             flatXij_patch = self._standardize_patches(flatXij_patch)
 
@@ -237,9 +243,6 @@ class OrientedGaussianPartsLayer(Layer):
                                       self.gmm_cov_type,
                                       )
         C = resp.argmax(-1)
-
-        #if not_ok.mean() < 0.5:
-            #import pdb; pdb.set_trace()
 
         if 0:
             bkg_means = self._extra['bkg_mean'].ravel()[np.newaxis]
@@ -285,7 +288,7 @@ class OrientedGaussianPartsLayer(Layer):
             C = X.shape[-1]
         dim = (X.shape[1]-ps[0]+1, X.shape[2]-ps[1]+1, C)
 
-        feature_map = -np.ones((X.shape[0],) + dim, dtype=np.int64)
+        feature_map = -np.ones((X.shape[0],) + dim, dtype=np.int32)
 
         EX_N = min(10, len(X))
         #ex_log_probs = np.zeros((EX_N,) + dim)
@@ -293,13 +296,14 @@ class OrientedGaussianPartsLayer(Layer):
 
         covar = self._prepare_covariance()
 
-        img_stds = ag.apply_once_over_axes(np.std, X, [1, 2, 3], keepdims=False)
+        img_stds = ag.apply_once(np.std, X, [1, 2, 3], keepdims=False)
         #img_stds = None
 
         for i, j in itr.product(range(dim[0]), range(dim[1])):
             Xij_patch = X[:, i:i+ps[0], j:j+ps[1]]
             if channel_mode == 'together':
-                feature_map[:, i, j, 0] = self.__extract(Xij_patch, covar, img_stds)
+                feature_map[:, i, j, 0] = self.__extract(Xij_patch, covar,
+                                                         img_stds)
             elif channel_mode == 'separate':
                 for c in range(C):
                     f = self.__extract(Xij_patch[...,c], covar, img_stds)
@@ -326,6 +330,9 @@ class OrientedGaussianPartsLayer(Layer):
         epsilon = self._settings['standardization_epsilon']
         return (flat_patches - means) / np.sqrt(variances + epsilon)
 
+    def whiten_patches(self, flat_patches):
+        return np.dot(self._whitening_matrix, flat_patches.T).T
+
     def train(self, phi, data, y=None):
         X = phi(data)
         raw_originals, the_rest = self._get_patches(X)
@@ -335,10 +342,26 @@ class OrientedGaussianPartsLayer(Layer):
         # Standardize them
         old_raw_originals = raw_originals.copy()
         if self._settings['standardize']:
-            mu = ag.apply_once_over_axes(np.mean, raw_originals, [1, 2, 3, 4])
-            variances = ag.apply_once_over_axes(np.var, raw_originals, [1, 2, 3, 4])
+            mu = ag.apply_once(np.mean, raw_originals, [1, 2, 3, 4])
+            variances = ag.apply_once(np.var, raw_originals, [1, 2, 3, 4])
             epsilon = self._settings['standardization_epsilon']
             raw_originals = (raw_originals - mu) / np.sqrt(variances + epsilon)
+
+        pp = raw_originals.reshape((np.prod(raw_originals.shape[:2]), -1))
+        sigma = np.dot(pp.T, pp) / len(pp)
+        self._extra['sigma'] = sigma
+        if self.w_epsilon is not None:
+            U, S, _ = np.linalg.svd(sigma)
+
+            shrinker = np.diag(1 / np.sqrt(S + self.w_epsilon))
+
+            #self._whitening_matrix = U @ shrinker @ U.T
+            self._whitening_matrix = np.dot(U, np.dot(shrinker, U.T))
+        else:
+            self._whitening_matrix = np.eye(sigma.shape[0])
+
+        pp = self.whiten_patches(pp)
+        raw_originals = pp.reshape(raw_originals.shape)
 
         self.train_from_samples(raw_originals, the_rest)
 
@@ -355,7 +378,7 @@ class OrientedGaussianPartsLayer(Layer):
         c = self._settings['covariance_type']
         if c in ['full-full', 'full-perm']:
             return 'full'
-        elif c == 'diag-perm':
+        elif c in ['diag-perm', 'ones']:
             return 'diag'
         else:
             return c
@@ -654,10 +677,10 @@ class OrientedGaussianPartsLayer(Layer):
                         vispatch[ORI:] = np.roll(vispatch[ORI:], shift, axis=0)
 
                     #if all_img[sel0_inner].std() > std_thresh:
-                    all_stds = ag.apply_once_over_axes(np.std,
-                                                       all_img[sel1_inner],
-                                                       [1, 2],
-                                                       keepdims=False)
+                    all_stds = ag.apply_once(np.std,
+                                             all_img[sel1_inner],
+                                             [1, 2],
+                                             keepdims=False)
                     #if np.median(all_stds) > std_thresh:
                     #if np.median(all_stds) > std_thresh:
 
@@ -752,7 +775,7 @@ class OrientedGaussianPartsLayer(Layer):
         vz.text('Canonical parts')
         grid = ColorImageGrid(self._means[::self._n_orientations], vmin=None,
                               vmax=None, vsym=True)
-        grid.save(vz.impath(), scale=10)
+        grid.save(vz.impath(), scale=4)
 
         # Parts (means)
         if self._n_orientations > 1:
@@ -760,7 +783,7 @@ class OrientedGaussianPartsLayer(Layer):
             grid = ColorImageGrid(self._means, cols=self._n_orientations,
                                   vmin=None, vmax=None, vsym=True)
 
-            grid.save(vz.impath(), scale=10)
+            grid.save(vz.impath(), scale=4)
 
         # Covariance matrix
         vz.text('Covariance matrix')
@@ -875,6 +898,7 @@ class OrientedGaussianPartsLayer(Layer):
         d['settings'] = self._settings
         d['train_info'] = self._train_info
         d['extra'] = self._extra
+        d['whitening_matrix'] = self._whitening_matrix
 
         d['means'] = self._means
         d['covar'] = self._covar
@@ -899,6 +923,7 @@ class OrientedGaussianPartsLayer(Layer):
         obj._visparts = d.get('visparts')
         obj._train_info = d.get('train_info')
         obj._extra = d.get('extra', {})
+        obj._whitening_matrix = d['whitening_matrix']
 
         #
         obj.preprocess()

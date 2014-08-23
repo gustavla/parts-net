@@ -88,12 +88,12 @@ class KMeansPartsLayer(Layer):
         return self._parts is not None
 
     def _standardize_patches(self, flat_patches):
-        #means = ag.apply_once_over_axes(np.mean, patches, [1, 2])
-        #stds = ag.apply_once_over_axes(np.std, patches, [1, 2])
+        #means = ag.apply_once(np.mean, patches, [1, 2])
+        #stds = ag.apply_once(np.std, patches, [1, 2])
 
-        means = np.apply_over_axes(np.mean, flat_patches, [1])
+        means = ag.apply_once(np.mean, flat_patches, [1])
         #stds = np.apply_over_axes(np.std, flat_patches, [1])
-        variances = np.apply_over_axes(np.var, flat_patches, [1])
+        variances = ag.apply_once(np.var, flat_patches, [1])
 
         return (flat_patches - means) / np.sqrt(variances + self.epsilon)
 
@@ -156,14 +156,15 @@ class KMeansPartsLayer(Layer):
 
         self._extra['sigma'] = sigma
 
-        U, S, _ = np.linalg.svd(sigma)
+        if self.w_epsilon is not None:
+            U, S, _ = np.linalg.svd(sigma)
 
-        #epsilon = 1e-40
-        shrinker = np.diag(1 / np.sqrt(S + self.w_epsilon))
-        #shrinker = np.diag(1 / np.sqrt(S.clip(min=epsilon)))
+            shrinker = np.diag(1 / np.sqrt(S + self.w_epsilon))
 
-        #self._whitening_matrix = U @ shrinker @ U.T
-        self._whitening_matrix = np.dot(U, np.dot(shrinker, U.T))
+            #self._whitening_matrix = U @ shrinker @ U.T
+            self._whitening_matrix = np.dot(U, np.dot(shrinker, U.T))
+        else:
+            self._whitening_matrix = np.eye(sigma.shape[0])
 
         # Now whiten the training patches
         pp = self.whiten_patches(pp)
@@ -174,7 +175,7 @@ class KMeansPartsLayer(Layer):
             rs = np.random.RandomState(self._settings['seed'])
             sh = (self._num_parts,) + self._part_shape
             self._parts = rs.normal(0, 1, size=sh)
-            #self._parts /= ag.apply_once_over_axes(np.mean, self._parts, [1, 2])
+            #self._parts /= ag.apply_once(np.mean, self._parts, [1, 2])
             return
         else:
             # Run K-means
@@ -251,6 +252,14 @@ class KMeansPartsLayer(Layer):
 
         #grid = ag.plot.ImageGrid(self._parts.transpose(0, 3, 1, 2))
         #grid.save(vz.impath(), scale=4)
+
+        vz.text('Whitening matrix')
+        grid = ag.plot.ImageGrid(self._whitening_matrix, vsym=True, cmap=cm.RdBu_r)
+        grid.save(vz.impath(), scale=4)
+
+        vz.text('Sigma matrix')
+        grid = ag.plot.ImageGrid(self._extra['sigma'], vsym=True, cmap=cm.RdBu_r)
+        grid.save(vz.impath(), scale=4)
 
 
     def save_to_dict(self):

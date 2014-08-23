@@ -23,11 +23,11 @@ def main():
     S = 13
 
     layers += [
-        #pnet.PoolingLayer(final_shape=(2, 2), operation='sum'),
+        pnet.PoolingLayer(final_shape=(2, 2), operation='sum'),
         #pnet.PoolingLayer(shape=(29, 29), strides=(29, 29), operation='sum'),
-        pnet.PoolingLayer(shape=(S, S), strides=(S, S), operation='sum'),
+        #pnet.PoolingLayer(shape=(S, S), strides=(S, S), operation='sum'),
         #pnet.MixtureClassificationLayer(n_components=10, min_prob=1e-5, settings=dict( standardize=False,),)
-        pnet.SVMClassificationLayer(C=10**np.linspace(-3, -5, 10), settings=dict(standardize=True)),
+        pnet.SVMClassificationLayer(C=0.0005, settings=dict(standardize=True)),
     ]
 
     net = pnet.PartsNet(layers)

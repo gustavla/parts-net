@@ -77,11 +77,11 @@ class GaussianPartsLayer(Layer):
         return self.train_from_samples(patches)
 
     def _standardize_patches(self, flat_patches):
-        #means = ag.apply_once_over_axes(np.mean, patches, [1, 2])
-        #stds = ag.apply_once_over_axes(np.std, patches, [1, 2])
+        #means = ag.apply_once(np.mean, patches, [1, 2])
+        #stds = ag.apply_once(np.std, patches, [1, 2])
 
-        means = np.apply_over_axes(np.mean, flat_patches, [1])
-        stds = np.apply_over_axes(np.std, flat_patches, [1])
+        means = ag.apply_once(np.mean, flat_patches, [1])
+        stds = ag.apply_once(np.std, flat_patches, [1])
 
         epsilon = 0.025 / 2
 

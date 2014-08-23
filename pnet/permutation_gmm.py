@@ -5,7 +5,8 @@ from scipy.misc import logsumexp
 from sklearn.base import BaseEstimator
 import time
 
-_COV_TYPES = ['tied', 'diag', 'diag-perm', 'full', 'full-perm', 'full-full']
+_COV_TYPES = ['ones', 'tied', 'diag', 'diag-perm',
+              'full', 'full-perm', 'full-full']
 
 
 class PermutationGMM(BaseEstimator):
@@ -82,7 +83,9 @@ class PermutationGMM(BaseEstimator):
             for shift in range(P):
                 p0 = self.permutations[shift, p]
                 for k in range(K):
-                    if self._covtype == 'tied':
+                    if self._covtype == 'ones':
+                        cov = np.diag(self.covars_)
+                    elif self._covtype == 'tied':
                         cov = self.covars_
                     elif self._covtype == 'diag-perm':
                         cov = np.diag(self.covars_[p])
@@ -145,7 +148,9 @@ class PermutationGMM(BaseEstimator):
             # Initialize to covariance matrix of all samples
             cv = np.cov(flatX.T) + self.min_covar * np.eye(F)
 
-            if self._covtype == 'tied':
+            if self._covtype == 'ones':
+                self.covars_ = np.ones(cv.shape[0])
+            elif self._covtype == 'tied':
                 self.covars_ = cv
             elif self._covtype == 'diag':
                 self.covars_ = np.tile(np.diag(cv).copy(), (K, P, 1))
@@ -180,11 +185,14 @@ class PermutationGMM(BaseEstimator):
 
                     self.means_[:, p, :] = v
                 self.means_ /= dens.ravel()[:, np.newaxis, np.newaxis]
-                ww = (np.apply_over_axes(np.sum, resp, [0])[0, :, :] / N)
+                ww = (ag.apply_once(np.sum, resp, [0], keepdims=False) / N)
 
                 self.weights_[:] = ww.clip(0.0001, 1 - 0.0001)
 
-                if self._covtype == 'tied':
+                if self._covtype == 'ones':
+                    # Do not update
+                    pass
+                elif self._covtype == 'tied':
                     from pnet.cyfuncs import calc_new_covar
                     self.covars_[:] = calc_new_covar(X[:self._covar_limit],
                                                      self.means_,
@@ -193,7 +201,8 @@ class PermutationGMM(BaseEstimator):
 
                     # Now make sure the diagonal is not overfit
                     dd = np.diag(self.covars_)
-                    self.covars_ += np.diag(dd.clip(min=self.min_covar) - dd)
+                    D = self.covars_.shape[0]
+                    self.covars_ += np.eye(D) * self.min_covar
 
                 elif self._covtype == 'diag':
                     from pnet.cyfuncs import calc_new_covar_diag as calc
@@ -202,7 +211,7 @@ class PermutationGMM(BaseEstimator):
                                            resp,
                                            self.permutations)
 
-                    self.covars_[:] = self.covars_.clip(min=self.min_covar)
+                    self.covars_[:] += self.min_covar
 
                 elif self._covtype == 'diag-perm':
                     from pnet.cyfuncs import calc_new_covar_diagperm as calc
