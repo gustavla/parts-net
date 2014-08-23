@@ -42,8 +42,5 @@ def main():
     norm_conf = conf_mat / np.apply_over_axes(np.sum, conf_mat, [1])
     print(norm_conf)
 
-    from vzlog.default import vz
-    vz.output(net)
-
 if pnet.parallel.main(__name__):
     main()
