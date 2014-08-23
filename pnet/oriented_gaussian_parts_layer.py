@@ -35,7 +35,7 @@ def _log_multivariate_normal_density_tied(X, means, covars):
     """Compute Gaussian log-density at X for a tied model"""
     n_samples, n_dim = X.shape
     icv = pinvh(covars)
-    lpr = -0.5 * (n_dim * np.log(2 * np.pi) + np.log(linalg.det(covars))
+    lpr = -0.5 * (n_dim * np.log(2 * np.pi) + np.log(linalg.det(covars) + 1e-5)
                   + np.sum(X * np.dot(X, icv), 1)[:, np.newaxis]
                   - 2 * np.dot(np.dot(X, icv), means.T)
                   + np.sum(means * np.dot(means, icv), 1))

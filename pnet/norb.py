@@ -62,9 +62,6 @@ def train_and_test(net, samples_per_class=None, seed=0, limit=None):
     net.train(lambda x: x, X, y)
     print('Training supervised... Done')
 
-    from vzlog.default import vz
-    vz.output(net)
-    vz.flush()
     net.save('model.h5')
 
     # Load testing data
