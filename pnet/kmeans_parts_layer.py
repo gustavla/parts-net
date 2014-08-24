@@ -10,8 +10,8 @@ import pnet
 
 @Layer.register('kmeans-parts-layer')
 class KMeansPartsLayer(Layer):
-    def __init__(self, num_parts, part_shape, settings={}):
-        self._num_parts = num_parts
+    def __init__(self, n_parts=100, part_shape=(6, 6), settings={}):
+        self._num_parts = n_parts
         self._part_shape = part_shape
         self._settings = settings
         self._train_info = {}
@@ -195,9 +195,19 @@ class KMeansPartsLayer(Layer):
             cl.fit(pp)
             ag.info('Done.')
 
+            counts = np.bincount(cl.labels_, minlength=self._num_parts)
+
+            II = np.argsort(counts)[::-1]
+            cl.cluster_centers_ = cl.cluster_centers_[II]
+            counts = counts[II]
+
+            ag.info('counts', counts)
+
             self._parts = cl.cluster_centers_.reshape((-1,) + patches.shape[1:])
 
             vz.section('Parts')
+
+        self._preprocess()
 
     def _create_extract_func(self):
         import theano.tensor as T
@@ -243,11 +253,12 @@ class KMeansPartsLayer(Layer):
         C = self._parts.shape[-1]
 
         if C == 1:
-            grid = ag.plot.ImageGrid(self._parts[...,0])
+            #grid = ag.plot.ImageGrid(self._parts[...,0])
+            vz.log('span', ag.span(self._parts))
+            grid = ag.plot.ImageGrid(self._parts[...,0], vsym=True)
             grid.save(vz.impath(), scale=4)
         elif C in [2, 3]:
-            cpp = (self._parts - self._parts.min()) / (self._parts.max() - self._parts.min())
-            grid = ag.plot.ColorImageGrid(cpp)
+            grid = ag.plot.ColorImageGrid(cpp, vmin=None, vmax=None, vsym=True)
             grid.save(vz.impath(), scale=4)
 
         #grid = ag.plot.ImageGrid(self._parts.transpose(0, 3, 1, 2))
