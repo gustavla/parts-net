@@ -253,6 +253,7 @@ class PermutationGMM(BaseEstimator):
                                            resp,
                                            self.permutations)
 
+                    D = self.covars_.shape[2]
                     for k, p in itr.product(range(K), range(P)):
                         # Regularize covariance
                         self.covars_[k, p] *= (1 - self._reg_covar)
@@ -260,7 +261,9 @@ class PermutationGMM(BaseEstimator):
 
                         dd = np.diag(self.covars_[k, p])
                         clipped_dd = dd.clip(min=self.min_covar)
-                        self.covars_[k, p] += np.diag(clipped_dd - dd)
+                        #self.covars_[k, p] += np.diag(clipped_dd - dd)
+                        #self.covars_[k, p] += np.diag(clipped_dd - dd)
+                        self.covars_[k, p] += np.eye(D) * self.min_covar
 
                 # Calculate log likelihood
                 loglikelihoods.append(logprob.sum())
@@ -285,10 +288,14 @@ class PermutationGMM(BaseEstimator):
                 max_log_prob = loglikelihoods[-1]
                 best_params = {'weights': self.weights_,
                                'means': self.means_,
+                               'covars': self.covars_,
                                'converged': self.converged_}
+            else:
+                ag.info("Did not updated best")
 
         self.weights_ = best_params['weights']
         self.means_ = best_params['means']
+        self.covars_ = best_params['covars']
         self.converged_ = best_params['converged']
 
     def predict_flat(self, X):
