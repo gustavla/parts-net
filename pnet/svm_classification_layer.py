@@ -124,21 +124,21 @@ class SVMClassificationLayer(SupervisedLayer):
         self._svm = clf
 
     def _vzlog_output_(self, vz):
-        vz.log('means', self._extra['means'])
-        vz.log('vars', self._extra['vars'])
-        vz.log('min var', np.min(self._extra['vars']))
-
         import pylab as plt
+        if self._settings.get('standardize'):
+            vz.log('means', self._extra['means'])
+            vz.log('vars', self._extra['vars'])
+            vz.log('min var', np.min(self._extra['vars']))
 
-        plt.figure()
-        plt.hist(self._extra['means'])
-        plt.title('Means')
-        plt.savefig(vz.impath())
+            plt.figure()
+            plt.hist(self._extra['means'])
+            plt.title('Means')
+            plt.savefig(vz.impath())
 
-        plt.figure()
-        plt.hist(self._extra['vars'])
-        plt.title('Variances')
-        plt.savefig(vz.impath())
+            plt.figure()
+            plt.hist(self._extra['vars'])
+            plt.title('Variances')
+            plt.savefig(vz.impath())
 
     def save_to_dict(self):
         d = {}
