@@ -119,7 +119,6 @@ class OrientedGaussianPartsLayer(Layer):
     def __init__(self, n_parts=1, n_orientations=1, part_shape=(6, 6),
                  settings={}):
         self._num_true_parts = n_parts
-        self._num_parts = n_parts * n_orientations
         self._n_orientations = n_orientations
         self._part_shape = part_shape
         self._settings = dict(polarities=1,
@@ -141,6 +140,7 @@ class OrientedGaussianPartsLayer(Layer):
                               normalize_globally=False,
                               code_bkg=False,
                               whitening_epsilon=None,
+                              min_count=5,
                               )
         self._extra = {}
 
@@ -164,7 +164,7 @@ class OrientedGaussianPartsLayer(Layer):
 
     @property
     def num_parts(self):
-        return self._num_parts
+        return self._num_true_parts * self._n_orientations
 
     @property
     def part_shape(self):
@@ -288,7 +288,7 @@ class OrientedGaussianPartsLayer(Layer):
             C = X.shape[-1]
         dim = (X.shape[1]-ps[0]+1, X.shape[2]-ps[1]+1, C)
 
-        feature_map = -np.ones((X.shape[0],) + dim, dtype=np.int32)
+        feature_map = -np.ones((X.shape[0],) + dim, dtype=np.int64)
 
         EX_N = min(10, len(X))
         #ex_log_probs = np.zeros((EX_N,) + dim)
@@ -307,13 +307,13 @@ class OrientedGaussianPartsLayer(Layer):
             elif channel_mode == 'separate':
                 for c in range(C):
                     f = self.__extract(Xij_patch[...,c], covar, img_stds)
-                    f[f != -1] += c * self._num_parts
+                    f[f != -1] += c * self.num_parts
                     feature_map[:, i, j, c] = f
 
         #self.__TEMP_ex_log_probs = ex_log_probs
         #self.__TEMP_ex_log_probs2 = np.concatenate(ex_log_probs2)
 
-        num_features = self._num_parts * C
+        num_features = self.num_parts * C
         if self._settings['code_bkg']:
             num_features += 1
         return (feature_map, num_features)
@@ -368,7 +368,7 @@ class OrientedGaussianPartsLayer(Layer):
         # TODO
         f = self.extract(lambda x: x, old_raw_originals[:,0])
         feat = f[0].ravel()
-        print('bincounts', np.bincount(feat[feat!=-1], minlength=f[1]))
+        ag.info('bincounts', np.bincount(feat[feat!=-1], minlength=f[1]))
 
         self.preprocess()
 
@@ -400,12 +400,11 @@ class OrientedGaussianPartsLayer(Layer):
 
                 a = np.arctan2(gr_y[1:-1, 1:-1], gr_x[1:-1, 1:-1])
                 ori_index = orientations * (a + 1.5*np.pi) / (2 * np.pi)
-                indices = np.round(ori_index).astype(np.int32)
+                indices = np.round(ori_index).astype(np.int64)
                 theta = (orientations - indices) % orientations
 
                 # This is not the most robust way, but it works
                 counts = np.bincount(theta.ravel(), minlength=8)
-                print(':', i, counts)
                 if counts.argmax() == 0:
                     main_rot = i
                     break
@@ -463,49 +462,73 @@ class OrientedGaussianPartsLayer(Layer):
         mm.fit(Xflat)
 
         comps = mm.predict(Xflat)
-        ag.info('Samples:', np.bincount(comps[:, 0]))
 
-        self._TMP_comps = comps
-
-        # Example patches - initialize to NaN if component doesn't fill it up
-        EX_N = 50
-        ex_shape = (self._num_true_parts, EX_N) + self._part_shape + raw_originals.shape[4:]
-        ex_patches = np.empty(ex_shape)
-        ex_patches[:] = np.nan
-
-        for k in range(self._num_true_parts):
-            XX = raw_originals[comps[:, 0] == k]
-            rot = comps[comps[:, 0] == k, 1]
-            for n in range(min(EX_N, len(XX))):
-                ex_patches[k, n] = XX[n, rot[n]]
-
-        self._train_info['example_patches'] = ex_patches
-
-        # Rotate the parts into the canonical rotation
-        if POL == 1 and False:
-            self.rotate_indices(mm, ORI)
-
-        means_shape = (mm.n_components * P,) + raw_originals.shape[2:]
-        print('means_shape', means_shape)
-        self._means = mm.means_.reshape(means_shape)
-        self._covar = mm.covars_
-        if self._settings['uniform_weights']:
-            # Set weights to uniform
-            self._weights = np.ones(mm.weights_.shape)
-            self._weights /= np.sum(self._weights)
-        else:
-            self._weights = mm.weights_
-
-        co = np.bincount(comps[:, 0], minlength=self._num_true_parts)
-        self._train_info['counts'] = co
-
-        ag.info('Training counts', self._train_info['counts'])
-
-        self._visparts = np.asarray([
+        visparts = np.asarray([
             raw_originals[comps[:, 0] == k,
                           comps[comps[:, 0] == k][:, 1]].mean(0)
             for k in range(self._num_true_parts)
         ])
+
+        if 1:
+            EX_N = 50
+            ex_shape = ((self._num_true_parts, EX_N) + self._part_shape +
+                        raw_originals.shape[4:])
+            ex_patches = np.empty(ex_shape)
+            ex_patches[:] = np.nan
+
+            for k in range(self._num_true_parts):
+                XX = raw_originals[comps[:, 0] == k]
+                rot = comps[comps[:, 0] == k, 1]
+                for n in range(min(EX_N, len(XX))):
+                    ex_patches[k, n] = XX[n, rot[n]]
+
+
+        counts = np.bincount(comps[:, 0])
+        II = np.argsort(counts)[::-1]
+
+        ok = counts >= self._settings['min_count']
+        II = np.asarray([ii for ii in II if ok[ii]])
+
+        counts = counts[II]
+        means = mm.means_[II]
+        weights = mm.weights_[II]
+        self._visparts = visparts[II]
+        self._train_info['example_patches'] = ex_patches[II]
+
+
+        np.seterr(all='raise')
+
+        n_components = len(II)
+        self._num_true_parts = len(II)
+
+        print('Kept', n_components, 'out of', mm.n_components)
+
+        # Covariance types that will need resorting
+        covtypes = ['diag', 'diag-perm', 'full', 'full-full']
+        if self._settings['covariance_type'] in covtypes:
+            covars = mm.covars_[II]
+        else:
+            covars = mm.covars_
+
+        ag.info('counts', counts)
+
+        # Example patches - initialize to NaN if component doesn't fill it up
+        # Rotate the parts into the canonical rotation
+        #if POL == 1 and False:
+            #self.rotate_indices(mm, ORI)
+
+        means_shape = (n_components * P,) + raw_originals.shape[2:]
+        ag.info('means_shape', means_shape)
+        self._means = means.reshape(means_shape)
+        self._covar = covars
+        if self._settings['uniform_weights']:
+            # Set weights to uniform
+            self._weights = np.ones(weights.shape)
+            self._weights /= np.sum(self._weights)
+        else:
+            self._weights = weights
+
+        self._train_info['counts'] = counts
 
         def collapse12(Z):
             return Z.reshape((-1,) + Z.shape[2:])
@@ -555,7 +578,7 @@ class OrientedGaussianPartsLayer(Layer):
             img_padded = ag.util.pad_to_size(img, (new_size[0], new_size[1],) + X.shape[3:])
             pad = [(new_size[i]-size[i])//2 for i in range(2)]
 
-            angles = np.arange(0, 360, 360/ORI)
+            angles = np.arange(0, 360, 360 / ORI)
             radians = angles*np.pi/180
             all_img = np.asarray([
                 transform.rotate(img_padded,
@@ -731,22 +754,23 @@ class OrientedGaussianPartsLayer(Layer):
         vz.log('Part shape:', self._means.shape)
 
         if self._train_info is not None:
-            XX = self._train_info['example_patches']
-            vz.log(XX.shape)
-            concats = [self._means[::self._n_orientations, np.newaxis], XX]
-            means_and_exs = np.concatenate(concats, axis=1)
-            grid = ColorImageGrid(means_and_exs, border_color=0.8, vmin=None, vmax=None, vsym=True)
-            grid.highlight(col=0, color=(1.0, 1.0, 0.5))
-            grid.save(vz.impath(), scale=4)
+            if 'example_patches' in self._train_info:
+                XX = self._train_info['example_patches']
+                vz.log(XX.shape)
+                concats = [self._means[::self._n_orientations, np.newaxis], XX]
+                means_and_exs = np.concatenate(concats, axis=1)
+                grid = ColorImageGrid(means_and_exs, border_color=0.8, vmin=None, vmax=None, vsym=True)
+                grid.highlight(col=0, color=(1.0, 1.0, 0.5))
+                grid.save(vz.impath(), scale=4)
 
             vz.log('Training counts', self._train_info.get('counts'))
 
             cc = self._train_info['counts']
             vz.log('A', cc / cc.sum())
 
-            covs = [np.cov(X.reshape((X.shape[0], -1)).T) for X in XX]
-            grid = ImageGrid(covs, cmap=cm.RdBu_r, vsym=True)
-            grid.save(vz.impath(), scale=4)
+            #covs = [np.cov(X.reshape((X.shape[0], -1)).T) for X in XX]
+            #grid = ImageGrid(covs, cmap=cm.RdBu_r, vsym=True)
+            #grid.save(vz.impath(), scale=4)
 
         if 0:
             log_probs = self.__TEMP_ex_log_probs
@@ -769,12 +793,12 @@ class OrientedGaussianPartsLayer(Layer):
 
         # Weights
         vz.log('Parts weights: ')
-        vz.log(self._weights)
+        vz.log(self._weights.ravel())
 
         # The canonical parts
         vz.text('Canonical parts')
-        grid = ColorImageGrid(self._means[::self._n_orientations], vmin=None,
-                              vmax=None, vsym=True)
+        vz.log('span', ag.span(self._means))
+        grid = ColorImageGrid(self._means[::self._n_orientations], vsym=True)
         grid.save(vz.impath(), scale=4)
 
         # Parts (means)
@@ -786,27 +810,22 @@ class OrientedGaussianPartsLayer(Layer):
             grid.save(vz.impath(), scale=4)
 
         # Covariance matrix
-        vz.text('Covariance matrix')
-        grid = ImageGrid(self._covar, vsym=True,
-                         border_color=0.5, cmap=cm.RdBu_r)
-        grid.save(vz.impath(), scale=5)
+        #vz.text('Covariance matrix')
+        #grid = ImageGrid(self._covar, vsym=True,
+                         #border_color=0.5, cmap=cm.RdBu_r)
+        #grid.save(vz.impath(), scale=5)
 
         def diff_entropy(cov):
             return 1/2 * np.linalg.slogdet(2 * np.pi * np.e * cov)[1]
 
         # Variance
         if self._settings['covariance_type'] == 'diag':
-            if 0:
-                vz.text('Variance')
-                variances = np.asarray([
-                    [
-                        self._covar[k, p].reshape(self._part_shape)
-                        for p in range(self._n_orientations)
-                    ] for k in range(self._num_true_parts)
-                ])
-                grid = ImageGrid(variances, vsym=True,
-                                 border_color=0.5, cmap=cm.RdBu_r)
-                grid.save(vz.impath(), scale=5)
+            vz.text('Variance')
+            sh = self._covar.shape[:-1] + self._part_shape
+            variances = self._covar.reshape(sh)
+            grid = ImageGrid(variances, vsym=True,
+                             border_color=0.5, cmap=cm.RdBu_r)
+            grid.save(vz.impath(), scale=5)
 
         elif self._settings['covariance_type'] == 'diag-perm':
             vz.text('Variance')
@@ -826,6 +845,10 @@ class OrientedGaussianPartsLayer(Layer):
             grid.save(vz.impath(), scale=5)
             vz.log('Average variance:', np.mean(var))
 
+            vz.text('Covariance')
+            grid = ImageGrid(self._covar, vsym=True, cmap=cm.RdBu_r)
+            grid.save(vz.impath(), scale=5)
+
         elif self._settings['covariance_type'] == 'full':
             vz.text('Variance')
             variances = np.asarray([
@@ -844,6 +867,12 @@ class OrientedGaussianPartsLayer(Layer):
 
             vz.text('Differential entropies:')
             vz.log(Hs)
+
+        elif self._settings['covariance_type'] == 'full-full':
+            vz.text('Covariances')
+            grid = ImageGrid(self._covar, vsym=True,
+                             border_color=0.5, cmap=cm.RdBu_r)
+            grid.save(vz.impath(), scale=5)
 
         elif self._covar.ndim == 4:
             vz.text('Variance')
@@ -930,8 +959,11 @@ class OrientedGaussianPartsLayer(Layer):
         return obj
 
     def __repr__(self):
-        return 'OrientedPartsLayer(num_parts={num_parts}, '\
-               'part_shape={part_shape}, '\
-               'settings={settings})'.format(num_parts=self._num_parts,
-                                             part_shape=self._part_shape,
-                                             settings=self._settings)
+        return ('OrientedPartsLayer(num_true_parts={num_parts}, '
+                'n_orientations={n_orientations}, '
+                'part_shape={part_shape}, '
+                'settings={settings})'
+               ).format(num_parts=self._num_true_parts,
+                        n_orientations=self._n_orientations,
+                        part_shape=self._part_shape,
+                        settings=self._settings)
