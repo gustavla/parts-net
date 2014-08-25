@@ -80,6 +80,7 @@ class KMeansPartsLayer(Layer):
                 ok = (flatXij_patch.std(-1) > self._settings['std_thresh'])
 
                 XX = flatXij_patch[ok].astype(self._dtype)
+                assert X.shape[0] != 0
                 feature_map[ok, i, j] = self._extract_func(XX)
 
         return (feature_map[..., np.newaxis], n_features)
@@ -137,12 +138,15 @@ class KMeansPartsLayer(Layer):
         pp = patches.reshape((patches.shape[0], -1))
 
         C = X.shape[-1]
+        sh = (-1,) + self._part_shape + (C,)
 
-        def plot(title):
-            vz.section(title)
-            sh = (-1,) + self._part_shape + (C,)
-            grid = ag.plot.ColorImageGrid(pp[:1000].reshape(sh), rows=15)
-            grid.save(vz.impath(), scale=3)
+        if C <= 3:
+            def plot(title):
+                vz.section(title)
+                grid = ag.plot.ColorImageGrid(pp[:1000].reshape(sh), rows=15)
+                grid.save(vz.impath(), scale=3)
+        else:
+            def plot(title): return
 
         plot('Original patches')
 
