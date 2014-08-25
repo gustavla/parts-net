@@ -81,9 +81,10 @@ class KMeansPartsLayer(Layer):
 
                 ok = (flatXij_patch.std(-1) > self._settings['std_thresh'])
 
-                XX = flatXij_patch[ok].astype(self._dtype)
-                feature_map[ok, i, j] = self._extract_func(XX)
                 if len(XX) > 0:
+                    XX = flatXij_patch[ok]
+                    if XX.dtype != self._dtype:
+                        XX = XX.astype(self._dtype)
                     feature_map[ok, i, j] = self._extract_func(XX)
 
         return (feature_map[..., np.newaxis], n_features)
