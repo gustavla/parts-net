@@ -29,6 +29,8 @@ class KMeansPartsLayer(Layer):
                               code_bkg=False,
                               random_centroids=False,
                               std_thresh=0,
+                              standardize=True,
+                              whiten=True,
                               )
         self._extra = {}
 
@@ -152,7 +154,8 @@ class KMeansPartsLayer(Layer):
         plot('Original patches')
 
         # Standardize the patches
-        pp = self._standardize_patches(pp)
+        if self._settings['standardize']:
+            pp = self._standardize_patches(pp)
 
         plot('Standardized patches')
 
@@ -161,18 +164,18 @@ class KMeansPartsLayer(Layer):
 
         self._extra['sigma'] = sigma
 
-        if self.w_epsilon is not None:
+        if self._settings['whiten']:
             U, S, _ = np.linalg.svd(sigma)
 
             shrinker = np.diag(1 / np.sqrt(S + self.w_epsilon))
 
             #self._whitening_matrix = U @ shrinker @ U.T
             self._whitening_matrix = np.dot(U, np.dot(shrinker, U.T))
-        else:
-            self._whitening_matrix = np.eye(sigma.shape[0])
 
-        # Now whiten the training patches
-        pp = self.whiten_patches(pp)
+            # Now whiten the training patches
+            pp = self.whiten_patches(pp)
+        else:
+            self._whitening_matrix = None
 
         plot('Whitened patches')
 
@@ -225,13 +228,16 @@ class KMeansPartsLayer(Layer):
         s_means = s_input.mean(1, keepdims=True)
         #stds = s_input.std(1, keepdims=True)
         s_vars = s_input.var(1, keepdims=True)
-        x = (s_input - s_means) / T.sqrt(s_vars + self.epsilon)
-        # Standardize, end
+
+        if self._settings['standardize']:
+            x = (x - s_means) / T.sqrt(s_vars + self.epsilon)
+            # Standardize, end
 
         # Whiten
-        s_whiten = theano.shared(self._whitening_matrix.astype(s_input.dtype),
-                                 name='whitening_matrix')
-        x = T.dot(s_whiten, x.T).T
+        if self._settings['whiten']:
+            s_whiten = theano.shared(self._whitening_matrix.astype(s_input.dtype),
+                                     name='whitening_matrix')
+            x = T.dot(s_whiten, x.T).T
         # Whiten, end
 
         mu = (self._parts
@@ -269,9 +275,10 @@ class KMeansPartsLayer(Layer):
         #grid = ag.plot.ImageGrid(self._parts.transpose(0, 3, 1, 2))
         #grid.save(vz.impath(), scale=4)
 
-        vz.text('Whitening matrix')
-        grid = ag.plot.ImageGrid(self._whitening_matrix, vsym=True, cmap=cm.RdBu_r)
-        grid.save(vz.impath(), scale=4)
+        if self._whitening_matrix is not None:
+            vz.text('Whitening matrix')
+            grid = ag.plot.ImageGrid(self._whitening_matrix, vsym=True, cmap=cm.RdBu_r)
+            grid.save(vz.impath(), scale=4)
 
         vz.text('Sigma matrix')
         grid = ag.plot.ImageGrid(self._extra['sigma'], vsym=True, cmap=cm.RdBu_r)
