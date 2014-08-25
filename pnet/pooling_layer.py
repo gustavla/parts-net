@@ -56,7 +56,11 @@ class PoolingLayer(Layer):
 
         self._extract_info['concentration'] = np.apply_over_axes(np.mean, feature_map, [0, 1, 2])[0,0,0]
 
-        return feature_map
+        output_dtype = self._settings.get('output_dtype')
+        if output_dtype is not None:
+            return feature_map.astype(output_dtype)
+        else:
+            return feature_map
 
     @property
     def pos_matrix(self):
