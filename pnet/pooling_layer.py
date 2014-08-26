@@ -33,8 +33,8 @@ class PoolingLayer(Layer):
             return self._strides
 
     def extract(self, phi, data):
-
         X_F = phi(data)
+        output_dtype = self._settings.get('output_dtype')
         if isinstance(X_F, tuple):
             X = X_F[0]
             F = X_F[1]
@@ -60,12 +60,10 @@ class PoolingLayer(Layer):
 
             self._extract_info['concentration'] = np.apply_over_axes(np.mean, feature_map, [0, 1, 2])[0,0,0]
 
-            output_dtype = self._settings.get('output_dtype')
             if output_dtype is not None:
                 return feature_map.astype(output_dtype)
             else:
                 return feature_map
-
 
         else:
             X = X_F
@@ -94,7 +92,7 @@ class PoolingLayer(Layer):
                 N = X.shape[0]
                 F = X.shape[-1]
 
-                feature_map = np.zeros((N,) + fs + (F,))
+                feature_map = np.zeros((N,) + fs + (F,), dtype=output_dtype)
 
                 for (i, (x0, x1)), (j, (y0, y1)) in itr.product(xs, ys):
                     patch = X[:, x0:x1, y0:y1]

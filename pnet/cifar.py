@@ -11,7 +11,7 @@ def _test(Xs, ys, net, n_classes):
 def train_and_test(net, samples_per_class=None, seed=0, limit=None):
     # Load training data
     print('Loading data')
-    S = 10000
+    S = 2500
     def batch_loader(dataset, count):
         for n in range(count // S):
             if count is None:
@@ -20,10 +20,10 @@ def train_and_test(net, samples_per_class=None, seed=0, limit=None):
                 count0 = max(min(S, count - S * n), 0)
 
             test_X = ag.io.load_cifar_10(dataset, offset=S * n,
-                                           count=count0)[0]
+                                         count=count0, ret='x')
             if test_X.size == 0:
                 break
-            test_X = test_X.transpose(0, 2, 3, 1)
+            test_X = test_X.transpose(0, 2, 3, 1).copy()
             yield test_X
 
     #count = 5000
@@ -83,7 +83,7 @@ def train_and_test(net, samples_per_class=None, seed=0, limit=None):
         if test_X.size == 0:
             break
 
-        test_X = test_X.transpose(0, 2, 3, 1)
+        test_X = test_X.transpose(0, 2, 3, 1).copy()
 
         BATCHES = max(1, len(test_X) // 5000)
 

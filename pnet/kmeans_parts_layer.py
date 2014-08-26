@@ -82,7 +82,7 @@ class KMeansPartsLayer(Layer):
                     Xij_patch = X[:, i:i+ps[0], j:j+ps[1]]
                     flatXij_patch = Xij_patch.reshape((X.shape[0], -1))
 
-                    ok = (flatXij_patch.std(-1) > self._settings['std_thresh'])
+                    ok = (flatXij_patch.std(-1) >= self._settings['std_thresh'])
 
                     XX = flatXij_patch[ok]
                     if len(XX) > 0:
@@ -100,15 +100,15 @@ class KMeansPartsLayer(Layer):
                     Xij_patch = X[:, i:i+ps[0], j:j+ps[1]]
                     flatXij_patch = Xij_patch.reshape((X.shape[0], -1))
 
-                    ok = (flatXij_patch.std(-1) > self._settings['std_thresh'])
-
-                    #feature_map[:, i, j] = self._extract_func(flatXij_patch)
+                    ok = (flatXij_patch.std(-1) >= self._settings['std_thresh'])
 
                     XX = flatXij_patch[ok]
                     if len(XX) > 0:
                         if XX.dtype != self._dtype:
                             XX = XX.astype(self._dtype)
                         feature_map[ok, i, j] = self._extract_func(XX)
+
+
 
             return feature_map
 
@@ -118,11 +118,7 @@ class KMeansPartsLayer(Layer):
         return self._parts is not None
 
     def _standardize_patches(self, flat_patches):
-        #means = ag.apply_once(np.mean, patches, [1, 2])
-        #stds = ag.apply_once(np.std, patches, [1, 2])
-
         means = ag.apply_once(np.mean, flat_patches, [1])
-        #stds = np.apply_over_axes(np.std, flat_patches, [1])
         variances = ag.apply_once(np.var, flat_patches, [1])
 
         return (flat_patches - means) / np.sqrt(variances + self.epsilon)
@@ -152,7 +148,7 @@ class KMeansPartsLayer(Layer):
         # Filter
         th = self._settings['std_thresh']
         if th > 0:
-            gen = (x for x in gen if x.std() > th)
+            gen = (x for x in gen if x.std() >= th)
 
         rs = np.random.RandomState(0)
 
@@ -255,9 +251,7 @@ class KMeansPartsLayer(Layer):
 
         # Standardize input
         s_means = s_input.mean(1, keepdims=True)
-        #stds = s_input.std(1, keepdims=True)
         s_vars = s_input.var(1, keepdims=True)
-
         if self._settings['standardize']:
             x = (x - s_means) / T.sqrt(s_vars + self.epsilon)
             # Standardize, end
@@ -267,7 +261,6 @@ class KMeansPartsLayer(Layer):
             s_whiten = theano.shared(self._whitening_matrix.astype(s_input.dtype),
                                      name='whitening_matrix')
             x = T.dot(s_whiten, x.T).T
-        # Whiten, end
 
         mu = (self._parts
               .reshape((self._parts.shape[0], -1))
@@ -278,6 +271,7 @@ class KMeansPartsLayer(Layer):
         s_alphas = theano.shared(alphas, name='alphas').dimshuffle('x', 0)
 
         sums = T.tensordot(x, s_mu, [[1], [1]])
+
         coding = self._settings['coding']
         if coding == 'hard':
             xx = (s_alphas - sums)
@@ -290,7 +284,8 @@ class KMeansPartsLayer(Layer):
             s_output = T.maximum(0, mean_dists - dist)
 
         self._dtype = s_input.dtype
-        return theano.function([s_input], s_output)
+        f = theano.function([s_input], s_output)
+        return f
 
     def _preprocess(self):
         self._extract_func = self._create_extract_func()

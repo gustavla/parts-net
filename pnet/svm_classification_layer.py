@@ -41,11 +41,12 @@ class SVMClassificationLayer(SupervisedLayer):
         if isinstance(data, types.GeneratorType):
             Xs = []
             c = 0
-            for i, Xi in enumerate(data):
-                X_ = phi(Xi)
-                Xs.append(X_)
-                c += X_.shape[0]
+            for i, batch in enumerate(data):
+                Xi = phi(batch)
+                Xs.append(Xi)
+                c += Xi.shape[0]
                 ag.info('SVM: Has extracted', c)
+
             X = np.concatenate(Xs, axis=0)
         else:
             X = phi(data)
@@ -71,7 +72,7 @@ class SVMClassificationLayer(SupervisedLayer):
                 if isinstance(self._penalty, np.ndarray):
                     Cs = self._penalty
                 else:
-                    Cs = 10**np.linspace(0, -4, 10)
+                    Cs = 10**np.linspace(0, -1, -5)
                 avg_scores = np.zeros(len(Cs))
                 for i, C in enumerate(Cs):
                     clf = LinearSVC(C=C, random_state=seed)
