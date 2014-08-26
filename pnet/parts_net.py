@@ -104,7 +104,7 @@ class PartsNet(Layer):
         self._prepare_extract_funcs()
 
         old_caching = self.caching
-        self.caching = True
+        self.caching = False  # TODO: Until this can be better managed
 
         # Layers that need training and can be given training (this rules out
         # unsupervised if y is not specified). We fetch these so that we can
