@@ -31,6 +31,7 @@ class KMeansPartsLayer(Layer):
                               std_thresh=0,
                               standardize=True,
                               whiten=True,
+                              coding='hard',
                               )
         self._extra = {}
 
@@ -71,23 +72,47 @@ class KMeansPartsLayer(Layer):
             bkg_part = -1
             n_features = self.num_parts
 
-        feature_map = np.empty((X.shape[0],) + dim, dtype=np.int64)
-        feature_map[:] = bkg_part
+        coding = self._settings['coding']
+        if coding == 'hard':
+            feature_map = np.empty((X.shape[0],) + dim, dtype=np.int64)
+            feature_map[:] = bkg_part
 
-        with ag.Timer('extracting'):
-            for i, j in itr.product(range(dim[0]), range(dim[1])):
-                Xij_patch = X[:, i:i+ps[0], j:j+ps[1]]
-                flatXij_patch = Xij_patch.reshape((X.shape[0], -1))
+            with ag.Timer('extracting'):
+                for i, j in itr.product(range(dim[0]), range(dim[1])):
+                    Xij_patch = X[:, i:i+ps[0], j:j+ps[1]]
+                    flatXij_patch = Xij_patch.reshape((X.shape[0], -1))
 
-                ok = (flatXij_patch.std(-1) > self._settings['std_thresh'])
+                    ok = (flatXij_patch.std(-1) > self._settings['std_thresh'])
 
-                XX = flatXij_patch[ok]
-                if len(XX) > 0:
-                    if XX.dtype != self._dtype:
-                        XX = XX.astype(self._dtype)
-                    feature_map[ok, i, j] = self._extract_func(XX)
+                    XX = flatXij_patch[ok]
+                    if len(XX) > 0:
+                        if XX.dtype != self._dtype:
+                            XX = XX.astype(self._dtype)
+                        feature_map[ok, i, j] = self._extract_func(XX)
 
-        return (feature_map[..., np.newaxis], n_features)
+            return (feature_map[..., np.newaxis], n_features)
+        elif coding == 'triangle':
+            feature_map = np.zeros((X.shape[0],) + dim + (n_features,),
+                                   dtype=self._dtype)
+
+            with ag.Timer('extracting'):
+                for i, j in itr.product(range(dim[0]), range(dim[1])):
+                    Xij_patch = X[:, i:i+ps[0], j:j+ps[1]]
+                    flatXij_patch = Xij_patch.reshape((X.shape[0], -1))
+
+                    ok = (flatXij_patch.std(-1) > self._settings['std_thresh'])
+
+                    #feature_map[:, i, j] = self._extract_func(flatXij_patch)
+
+                    XX = flatXij_patch[ok]
+                    if len(XX) > 0:
+                        if XX.dtype != self._dtype:
+                            XX = XX.astype(self._dtype)
+                        feature_map[ok, i, j] = self._extract_func(XX)
+
+            return feature_map
+
+
     @property
     def trained(self):
         return self._parts is not None
@@ -205,6 +230,9 @@ class KMeansPartsLayer(Layer):
             ag.info('Done.')
 
             counts = np.bincount(cl.labels_, minlength=self._num_parts)
+            ww = counts / counts.sum()
+            HH = np.sum(-ww * np.log(ww))
+            print('entropy', HH)
 
             II = np.argsort(counts)[::-1]
             cl.cluster_centers_ = cl.cluster_centers_[II]
@@ -250,7 +278,16 @@ class KMeansPartsLayer(Layer):
         s_alphas = theano.shared(alphas, name='alphas').dimshuffle('x', 0)
 
         sums = T.tensordot(x, s_mu, [[1], [1]])
-        s_output = (sums - s_alphas).argmax(1)
+        coding = self._settings['coding']
+        if coding == 'hard':
+            xx = (s_alphas - sums)
+            s_output = xx.argmin(1)
+        elif coding == 'triangle':
+            x2 = T.sum(x ** 2, 1, keepdims=True) / 2
+            dist2 = (x2 - sums + s_alphas)
+            dist = T.sqrt(dist2)
+            mean_dists = dist.mean(1, keepdims=True)
+            s_output = T.maximum(0, mean_dists - dist)
 
         self._dtype = s_input.dtype
         return theano.function([s_input], s_output)
