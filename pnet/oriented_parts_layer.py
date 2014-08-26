@@ -175,22 +175,39 @@ class OrientedPartsLayer(Layer):
         comps = mm.predict(Xflat)
         ml = self._num_true_parts
         counts = np.bincount(comps[:, 0], minlength=ml)
+        visparts = np.asarray([
+            raw_originals[comps[:, 0] == k,
+                          comps[comps[:, 0] == k][:, 1]].mean(0)
+            for k in range(ml)
+        ])
 
-        ag.info('Training counts:', counts)
+        ww = counts / counts.sum()
+        HH = np.sum(-ww * np.log(ww))
+        print('entropy', HH)
 
-        # Reject some parts
         ok = counts >= self._settings['min_count']
 
-        ag.info('Keeping', ok.sum(), 'out of', ok.size, 'parts')
+        # Reject some parts
+        #ok = counts >= self._settings['min_count']
+        II = np.argsort(counts)[::-1]
 
-        self._num_true_parts = ok.sum()
-        mm.means_ = mm.means_[ok]
-        mm.weights_ = mm.weights_[ok]
-        counts_final = counts[ok]
+        II = np.asarray([ii for ii in II if ok[ii]])
+
+        ag.info('Keeping', len(II), 'out of', ok.size, 'parts')
+
+        self._num_true_parts = len(II)
+        means = mm.means_[II]
+        weights = mm.weights_[II]
+        counts_final = counts[II]
+
+        # Visualize parts : we iterate only over 'ok' ones
+        self._visparts = visparts[II]
+
+        ag.info('Training counts:', counts_final)
 
         # Store info
         sh = (self._num_true_parts * P,) + raw_patches.shape[2:]
-        self._parts = mm.means_.reshape(sh)
+        self._parts = means.reshape(sh)
         self._parts_vis = self._parts.copy()
 
         if self._settings['circular']:
@@ -214,13 +231,6 @@ class OrientedPartsLayer(Layer):
 
         self._train_info['counts_initial'] = counts
         self._train_info['counts'] = counts_final
-
-        # Visualize parts : we iterate only over 'ok' ones
-        self._visparts = np.asarray([
-            raw_originals[comps[:, 0] == k,
-                          comps[comps[:, 0] == k][:, 1]].mean(0)
-            for k in np.where(ok)[0]
-        ])
 
         self._preprocess()
 
