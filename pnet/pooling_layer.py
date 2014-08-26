@@ -3,6 +3,8 @@ from __future__ import division, print_function, absolute_import
 from pnet.layer import Layer
 import pnet
 import numpy as np
+import itertools as itr
+import amitgroup as ag
 
 @Layer.register('pooling-layer')
 class PoolingLayer(Layer):
@@ -31,36 +33,78 @@ class PoolingLayer(Layer):
             return self._strides
 
     def extract(self, phi, data):
+
         X_F = phi(data)
-        X = X_F[0]
-        F = X_F[1]
+        if isinstance(X_F, tuple):
+            X = X_F[0]
+            F = X_F[1]
 
-        #if X.ndim == 3:
-            #from pnet.cyfuncs import index_map_pooling as poolf
-        #else:
+            #if X.ndim == 3:
+                #from pnet.cyfuncs import index_map_pooling as poolf
+            #else:
 
-        shape = self.calc_shape(X.shape[1:3])
-        strides = self.calc_strides(X.shape[1:3])
+            shape = self.calc_shape(X.shape[1:3])
+            strides = self.calc_strides(X.shape[1:3])
 
-        if self._operation == 'max':
-            from pnet.cyfuncs import index_map_pooling_multi as poolf
-            feature_map = poolf(X, F, shape, strides)
+            if self._operation == 'max':
+                from pnet.cyfuncs import index_map_pooling_multi as poolf
+                feature_map = poolf(X, F, shape, strides)
 
-        elif self._operation == 'sum':
-            from pnet.cyfuncs import index_map_sum_pooling_multi as poolf
-            feature_map = poolf(X, F, shape, strides)
+            elif self._operation == 'sum':
+                from pnet.cyfuncs import index_map_sum_pooling_multi as poolf
+                feature_map = poolf(X, F, shape, strides)
+
+            else:
+                raise ValueError('Unknown pooling operation: {}'.format(
+                                 self._operation))
+
+            self._extract_info['concentration'] = np.apply_over_axes(np.mean, feature_map, [0, 1, 2])[0,0,0]
+
+            output_dtype = self._settings.get('output_dtype')
+            if output_dtype is not None:
+                return feature_map.astype(output_dtype)
+            else:
+                return feature_map
+
 
         else:
-            raise ValueError('Unknown pooling operation: {}'.format(
-                             self._operation))
+            X = X_F
 
-        self._extract_info['concentration'] = np.apply_over_axes(np.mean, feature_map, [0, 1, 2])[0,0,0]
+            if self._operation == 'max':
+                op = np.max
+            elif self._operation == 'sum':
+                op = np.sum
+            elif self._operation == 'avg':
+                op = np.mean
+            else:
+                raise ValueError('Unknown pooling operation: {}'.format(
+                                 self._operation))
 
-        output_dtype = self._settings.get('output_dtype')
-        if output_dtype is not None:
-            return feature_map.astype(output_dtype)
-        else:
-            return feature_map
+            if self._final_shape is not None:
+                fs = self._final_shape
+                x_steps = np.arange(fs[0]+1) * X.shape[1] / fs[0]
+                x_bounds = np.round(x_steps).astype(np.int_)
+
+                y_steps = np.arange(fs[1]+1) * X.shape[2] / fs[1]
+                y_bounds = np.round(y_steps).astype(np.int_)
+
+                xs = enumerate(zip(x_bounds[:-1], x_bounds[1:]))
+                ys = enumerate(zip(y_bounds[:-1], y_bounds[1:]))
+
+                N = X.shape[0]
+                F = X.shape[-1]
+
+                feature_map = np.zeros((N,) + fs + (F,))
+
+                for (i, (x0, x1)), (j, (y0, y1)) in itr.product(xs, ys):
+                    patch = X[:, x0:x1, y0:y1]
+                    feat = ag.apply_once(op, patch, [1, 2], keepdims=False)
+                    feature_map[:, i, j] = feat
+                return feature_map
+
+            else:
+                raise NotImplementedError('Not yet')
+
 
     @property
     def pos_matrix(self):
