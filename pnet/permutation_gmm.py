@@ -170,6 +170,11 @@ class PermutationGMM(BaseEstimator):
                 # E-step
                 logprob, log_resp = self.score_block_samples(X)
 
+                # TODO
+                hh = np.histogram(np.exp(log_resp.max(-1).max(-1)),
+                                  bins=np.linspace(0, 1, 11))
+                print(hh[0])
+
                 sh = (-1, log_resp.shape[1])
                 resp = np.exp(log_resp)
                 lresp = log_resp.transpose((0, 2, 1)).reshape(sh)
