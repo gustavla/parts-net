@@ -17,6 +17,7 @@ class KMeansPartsLayer(Layer):
         self._train_info = {}
         self._parts = None
         self._whitening_matrix = None
+        self._min_prob = -8
 
         self._settings = dict(whitening_epsilon=0.1,
                               standardization_epsilon=10 / 255,
@@ -91,9 +92,13 @@ class KMeansPartsLayer(Layer):
                         feature_map[ok, i, j] = self._extract_func(XX)
 
             return (feature_map[..., np.newaxis], n_features)
-        elif coding == 'triangle':
-            feature_map = np.zeros((X.shape[0],) + dim + (n_features,),
+        else:
+            feature_map = np.empty((X.shape[0],) + dim + (n_features,),
                                    dtype=self._dtype)
+            if coding == 'soft':
+                feature_map[:] = self._min_prob
+            else:
+                feature_map[:] = 0.0
 
             with ag.Timer('extracting'):
                 for i, j in itr.product(range(dim[0]), range(dim[1])):
@@ -281,7 +286,22 @@ class KMeansPartsLayer(Layer):
             dist2 = (x2 - sums + s_alphas)
             dist = T.sqrt(dist2)
             mean_dists = dist.mean(1, keepdims=True)
+            # TODO CHANGE BACK!:
+            #s_output = (1 + T.tanh(mean_dists - dist)) / 2 #T.maximum(0, mean_dists - dist)
             s_output = T.maximum(0, mean_dists - dist)
+        elif coding == 'soft':
+            x2 = T.sum(x ** 2, 1, keepdims=True) / 2
+            dist2 = (x2 - sums + s_alphas)
+            unorm_logs = -dist2
+            A = unorm_logs.max(axis=1, keepdims=True)
+            Z_logs = A + T.log(T.sum(T.exp(unorm_logs - A), axis=1, keepdims=True))
+            log_posts = unorm_logs - Z_logs
+
+            dist = T.sqrt(dist2)
+            mean_dists = dist.mean(1, keepdims=True)
+            #s_output = T.maximum(0, mean_dists - dist)
+            s_output = T.maximum(self._min_prob, log_posts)
+
 
         self._dtype = s_input.dtype
         f = theano.function([s_input], s_output)
@@ -304,6 +324,9 @@ class KMeansPartsLayer(Layer):
         elif C in [2, 3]:
             grid = ag.plot.ColorImageGrid(cpp, vmin=None, vmax=None, vsym=True)
             grid.save(vz.impath(), scale=4)
+        else:
+            grid = ag.plot.ImageGrid(self._parts.transpose(0, 3, 1, 2), cmap=cm.jet)
+            grid.save(vz.impath(), scale=2)
 
         #grid = ag.plot.ImageGrid(self._parts.transpose(0, 3, 1, 2))
         #grid.save(vz.impath(), scale=4)
@@ -313,9 +336,10 @@ class KMeansPartsLayer(Layer):
             grid = ag.plot.ImageGrid(self._whitening_matrix, vsym=True, cmap=cm.RdBu_r)
             grid.save(vz.impath(), scale=4)
 
-        vz.text('Sigma matrix')
-        grid = ag.plot.ImageGrid(self._extra['sigma'], vsym=True, cmap=cm.RdBu_r)
-        grid.save(vz.impath(), scale=4)
+        if self._extra['sigma'].shape[0] < 100:
+            vz.text('Sigma matrix')
+            grid = ag.plot.ImageGrid(self._extra['sigma'], vsym=True, cmap=cm.RdBu_r)
+            grid.save(vz.impath(), scale=4)
 
 
     def save_to_dict(self):
