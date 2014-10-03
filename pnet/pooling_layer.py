@@ -58,7 +58,8 @@ class PoolingLayer(Layer):
                 raise ValueError('Unknown pooling operation: {}'.format(
                                  self._operation))
 
-            self._extract_info['concentration'] = np.apply_over_axes(np.mean, feature_map, [0, 1, 2])[0,0,0]
+            c = ag.apply_over(np.mean, feature_map, [0, 1, 2], keepdims=False)
+            self._extract_info['concentration'] = c
 
             if output_dtype is not None:
                 return feature_map.astype(output_dtype)

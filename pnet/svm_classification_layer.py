@@ -72,7 +72,7 @@ class SVMClassificationLayer(SupervisedLayer):
                 if isinstance(self._penalty, np.ndarray):
                     Cs = self._penalty
                 else:
-                    Cs = 10**np.linspace(0, -1, -5)
+                    Cs = 10**np.linspace(-1, -5, 10)
                 avg_scores = np.zeros(len(Cs))
                 for i, C in enumerate(Cs):
                     clf = LinearSVC(C=C, random_state=seed)

@@ -26,13 +26,16 @@ def train_and_test(net, samples_per_class=None, seed=0, limit=None):
             test_X = test_X.transpose(0, 2, 3, 1).copy()
             yield test_X
 
-    #count = 5000
     count = 50000
     #count_sel = slice(count) if count is not None else None
 
     X = batch_loader('training', count)
     if count is 50000:
-        y = np.concatenate([ag.io.load_cifar_10('training', offset=10000*b)[1] for b in range(5)])
+        y = np.concatenate([ag.io.load_cifar_10('training', ret='y', offset=10000*b) for b in range(5)])
+    elif count <= 10000:
+        y = ag.io.load_cifar_10('training', ret='y', count=count)
+    else:
+        raise NotImplementedError("Not yet")
 
     print('Loading data... Done')
 

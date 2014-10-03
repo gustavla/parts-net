@@ -23,16 +23,20 @@ def main():
     S = 13
 
     layers += [
-        pnet.PoolingLayer(final_shape=(2, 2), operation='sum'),
+        pnet.PoolingLayer(final_shape=(2, 2), operation='avg'),
         #pnet.PoolingLayer(shape=(29, 29), strides=(29, 29), operation='sum'),
         #pnet.PoolingLayer(shape=(S, S), strides=(S, S), operation='sum'),
-        #pnet.MixtureClassificationLayer(n_components=10, min_prob=1e-5, settings=dict( standardize=False,),)
-        pnet.SVMClassificationLayer(C=0.0005, settings=dict(standardize=True)),
+        #pnet.GMMClassificationLayer(n_components=1,
+                                    #settings=dict(
+                                        #min_covariance=0.01,
+                                        #covariance_type='diag',
+                                        #),)
+        pnet.SVMClassificationLayer(C=None, settings=dict(standardize=True)),
     ]
 
     net = pnet.PartsNet(layers)
 
-    limit = None #15000
+    limit = None
     error_rate, conf_mat = pnet.cifar.train_and_test(net,
                                                      samples_per_class=None,
                                                      seed=0, limit=limit)
@@ -43,6 +47,9 @@ def main():
 
     norm_conf = conf_mat / np.apply_over_axes(np.sum, conf_mat, [1])
     print(norm_conf)
+
+    print('Column sums')
+    print(norm_conf.sum(0))
 
     from vzlog.default import vz
     vz.output(net)

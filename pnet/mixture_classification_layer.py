@@ -4,6 +4,7 @@ from pnet.layer import Layer
 import numpy as np
 from pnet.bernoulli_mm import BernoulliMM
 from scipy.special import logit
+import amitgroup as ag
 
 
 @Layer.register('mixture-classification-layer')
@@ -44,7 +45,20 @@ class MixtureClassificationLayer(SupervisedLayer):
         return yhat
 
     def train(self, phi, data, y):
-        X = phi(data)
+        import types
+        if isinstance(data, types.GeneratorType):
+            Xs = []
+            c = 0
+            for i, batch in enumerate(data):
+                Xi = phi(batch)
+                Xs.append(Xi)
+                c += Xi.shape[0]
+                ag.info('SVM: Has extracted', c)
+
+            X = np.concatenate(Xs, axis=0)
+        else:
+            X = phi(data)
+
         K = y.max() + 1
         mm_models = []
         mm_comps = []

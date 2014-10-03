@@ -17,7 +17,7 @@ class KMeansPartsLayer(Layer):
         self._train_info = {}
         self._parts = None
         self._whitening_matrix = None
-        self._min_prob = -8
+        self._min_prob = np.log(0.0005)
 
         self._settings = dict(whitening_epsilon=0.1,
                               standardization_epsilon=10 / 255,

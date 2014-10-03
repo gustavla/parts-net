@@ -2,6 +2,9 @@
 *.swp
 *.swo
 *.npy
+*.npz
+*.h5
+*.txt
 
 # C extensions
 *.so

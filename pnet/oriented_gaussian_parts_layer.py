@@ -73,8 +73,9 @@ def score_samples(X, means, weights, covars, covariance_type='diag'):
            + np.log(weights))
 
     logprob = logsumexp(lpr, axis=1)
-    responsibilities = np.exp(lpr - logprob[:, np.newaxis])
-    return logprob, responsibilities
+    #responsibilities = np.exp(lpr - logprob[:, np.newaxis])
+    log_resp = lpr - logprob[:, np.newaxis]
+    return logprob, log_resp
 
 
 def log_multivariate_normal_density(X, means, covars, covariance_type='diag'):
@@ -141,7 +142,9 @@ class OrientedGaussianPartsLayer(Layer):
                               code_bkg=False,
                               whitening_epsilon=None,
                               min_count=5,
+                              coding='hard',
                               )
+        self._min_log_prob = np.log(0.0005)
         self._extra = {}
 
         for k, v in settings.items():
@@ -230,50 +233,45 @@ class OrientedGaussianPartsLayer(Layer):
         else:
             not_ok = (flatXij_patch.std(-1) <= self._settings['std_thresh'])
 
-        flatXij_patch = self.whiten_patches(flatXij_patch)
-
         if self._settings['standardize']:
             flatXij_patch = self._standardize_patches(flatXij_patch)
 
+        if self._settings['whitening_epsilon'] is not None:
+            flatXij_patch = self.whiten_patches(flatXij_patch)
+
         K = self._means.shape[0]
-        logprob, resp = score_samples(flatXij_patch,
-                                      self._means.reshape((K, -1)),
-                                      self._weights.ravel(),
-                                      covar,
-                                      self.gmm_cov_type,
-                                      )
-        C = resp.argmax(-1)
+        logprob, log_resp = score_samples(flatXij_patch,
+                                          self._means.reshape((K, -1)),
+                                          self._weights.ravel(),
+                                          covar,
+                                          self.gmm_cov_type,
+                                          )
 
-        if 0:
-            bkg_means = self._extra['bkg_mean'].ravel()[np.newaxis]
-            bkg_covars = self._extra['bkg_covar'][np.newaxis]
-            bkg_weights = np.ones(1)
+        coding = self._settings['coding']
+        if coding == 'hard':
+            C = log_resp.argmax(-1)
 
-            bkg_logprob, _ = score_samples(flatXij_patch,
-                                           bkg_means,
-                                           bkg_weights,
-                                           bkg_covars,
-                                           'full',
-                                           )
+            if self._settings['code_bkg']:
+                bkg_part = self.num_parts
+            else:
+                bkg_part = -1
 
-            logratio = logprob - bkg_logprob
+            C[not_ok] = bkg_part
+            return C
+        elif coding == 'triangle':
+            #means = ag.apply_once(np.mean, resp, [1])
+            dist = -log_resp
+            means = ag.apply_once(np.mean, dist, [1])
 
-            not_ok = (logratio < self._settings['logratio_thresh'])
+            f = np.maximum(means - dist, 0)
+            f[not_ok] = 0.0
 
-            ex_log_probs[:, i, j] = logprob[:EX_N] - bkg_logprob[:EX_N]
-            #feature_map[:, i, j] = C
+            return f
+        elif coding == 'soft':
+            f = np.maximum(self._min_log_prob, log_resp)
+            f[not_ok] = self._min_log_prob
+            return f
 
-        #not_ok |= not_ok2
-
-        #feature_map[not_ok, i, j] = -1
-        if self._settings['code_bkg']:
-            bkg_part = self.num_parts
-        else:
-            bkg_part = -1
-
-        C[not_ok] = bkg_part
-
-        return C
 
     def extract(self, phi, data):
         assert self.trained, "Must be trained before calling extract"
@@ -288,7 +286,6 @@ class OrientedGaussianPartsLayer(Layer):
             C = X.shape[-1]
         dim = (X.shape[1]-ps[0]+1, X.shape[2]-ps[1]+1, C)
 
-        feature_map = -np.ones((X.shape[0],) + dim, dtype=np.int64)
 
         EX_N = min(10, len(X))
         #ex_log_probs = np.zeros((EX_N,) + dim)
@@ -299,6 +296,15 @@ class OrientedGaussianPartsLayer(Layer):
         img_stds = ag.apply_once(np.std, X, [1, 2, 3], keepdims=False)
         #img_stds = None
 
+        coding = self._settings['coding']
+        if coding == 'hard':
+            feature_map = -np.ones((X.shape[0],) + dim, dtype=np.int64)
+        elif coding == 'triangle':
+            feature_map = np.zeros((X.shape[0],) + dim + (self.num_parts,), dtype=np.float32)
+        elif coding == 'soft':
+            feature_map = np.empty((X.shape[0],) + dim + (self.num_parts,), dtype=np.float32)
+            feature_map[:] = self._min_log_prob
+
         for i, j in itr.product(range(dim[0]), range(dim[1])):
             Xij_patch = X[:, i:i+ps[0], j:j+ps[1]]
             if channel_mode == 'together':
@@ -307,16 +313,20 @@ class OrientedGaussianPartsLayer(Layer):
             elif channel_mode == 'separate':
                 for c in range(C):
                     f = self.__extract(Xij_patch[...,c], covar, img_stds)
+                    assert f.dtype in [np.int64, np.int32]
                     f[f != -1] += c * self.num_parts
                     feature_map[:, i, j, c] = f
 
         #self.__TEMP_ex_log_probs = ex_log_probs
         #self.__TEMP_ex_log_probs2 = np.concatenate(ex_log_probs2)
 
-        num_features = self.num_parts * C
-        if self._settings['code_bkg']:
-            num_features += 1
-        return (feature_map, num_features)
+        if coding == 'hard':
+            num_features = self.num_parts * C
+            if self._settings['code_bkg']:
+                num_features += 1
+            return (feature_map, num_features)
+        else:
+            return feature_map.reshape(feature_map.shape[:3] + (-1,))
 
     @property
     def trained(self):
@@ -366,9 +376,10 @@ class OrientedGaussianPartsLayer(Layer):
         self.train_from_samples(raw_originals, the_rest)
 
         # TODO
-        f = self.extract(lambda x: x, old_raw_originals[:,0])
-        feat = f[0].ravel()
-        ag.info('bincounts', np.bincount(feat[feat!=-1], minlength=f[1]))
+        if 0:
+            f = self.extract(lambda x: x, old_raw_originals[:,0])
+            feat = f[0].ravel()
+            ag.info('bincounts', np.bincount(feat[feat!=-1], minlength=f[1]))
 
         self.preprocess()
 
@@ -452,10 +463,11 @@ class OrientedGaussianPartsLayer(Layer):
                             n_iter=n_iter,
                             n_init=n_init,
                             random_state=seed,
-                            reg_covar=0.0,
+                            thresh=1e-5,
                             covariance_type=self._settings['covariance_type'],
                             covar_limit=covar_limit,
                             min_covar=self._settings['min_covariance'],
+                            params='wmc',
                             )
 
         Xflat = raw_originals.reshape(raw_originals.shape[:2] + (-1,))
@@ -463,9 +475,20 @@ class OrientedGaussianPartsLayer(Layer):
 
         comps = mm.predict(Xflat)
 
+        # Floating counts
+        from scipy.misc import logsumexp
+        logprob, log_resp = mm.score_block_samples(Xflat)
+        fcounts = np.exp(logsumexp(log_resp[...,0], axis=0))
+
+        def mean0(x):
+            if x.shape[0] == 0:
+                return np.zeros(x.shape[1:])
+            else:
+                return np.mean(x, axis=0)
+
         visparts = np.asarray([
-            raw_originals[comps[:, 0] == k,
-                          comps[comps[:, 0] == k][:, 1]].mean(0)
+            mean0(raw_originals[comps[:, 0] == k,
+                                comps[comps[:, 0] == k][:, 1]])
             for k in range(self._num_true_parts)
         ])
 
@@ -490,6 +513,7 @@ class OrientedGaussianPartsLayer(Layer):
         II = np.asarray([ii for ii in II if ok[ii]])
 
         counts = counts[II]
+        fcounts = fcounts[II]
         means = mm.means_[II]
         weights = mm.weights_[II]
         self._visparts = visparts[II]
@@ -510,7 +534,7 @@ class OrientedGaussianPartsLayer(Layer):
         else:
             covars = mm.covars_
 
-        ag.info('counts', counts)
+        ag.info(':counts', list(zip(counts, fcounts)))
 
         # Example patches - initialize to NaN if component doesn't fill it up
         # Rotate the parts into the canonical rotation
@@ -837,17 +861,26 @@ class OrientedGaussianPartsLayer(Layer):
                              border_color=0.5, cmap=cm.RdBu_r)
             grid.save(vz.impath(), scale=5)
 
-        elif self._covar.ndim == 2:
+        elif self._settings['covariance_type'] == 'full-perm':
             vz.text('Variance')
-            var = np.diag(self._covar).reshape(self._part_shape)
-            grid = ImageGrid(var, vsym=True,
+            grid = ImageGrid(self._covar, vsym=True, rows=1,
                              border_color=0.5, cmap=cm.RdBu_r)
             grid.save(vz.impath(), scale=5)
-            vz.log('Average variance:', np.mean(var))
 
-            vz.text('Covariance')
-            grid = ImageGrid(self._covar, vsym=True, cmap=cm.RdBu_r)
-            grid.save(vz.impath(), scale=5)
+        elif self._covar.ndim == 2:
+            vz.text('Variance')
+            try:
+                var = np.diag(self._covar).reshape(self._part_shape)
+                grid = ImageGrid(var, vsym=True,
+                                 border_color=0.5, cmap=cm.RdBu_r)
+                grid.save(vz.impath(), scale=5)
+                vz.log('Average variance:', np.mean(var))
+
+                vz.text('Covariance')
+                grid = ImageGrid(self._covar, vsym=True, cmap=cm.RdBu_r)
+                grid.save(vz.impath(), scale=5)
+            except:
+                pass
 
         elif self._settings['covariance_type'] == 'full':
             vz.text('Variance')

@@ -1,3 +1,4 @@
+from __future__ import division, print_function, absolute_import
 import numpy as np
 import amitgroup as ag
 import pnet
@@ -14,7 +15,7 @@ if __name__ == '__main__':
                         help='Filename of data file')
     parser.add_argument('seed', type=int, default=1)
     parser.add_argument('save_file', metavar='<output file>',
-                        type=argparse.FileType('wb'),
+                        type=str,
                         help='Filename of savable model file')
     parser.add_argument('--factor', '-f', type=float)
     parser.add_argument('--count', '-c', type=int)
@@ -41,48 +42,149 @@ if __name__ == '__main__':
 
         if args.factor is not None:
             layers = [
-                pnet.ResizeLayer(factor=args.factor),
+                pnet.ResizeLayer(factor=args.factor, make_gray=False),
             ]
 
-        if 0:
+        if 1:
             settings = dict(n_iter=10,
                             seed=0,
-                            n_init=5,
+                            n_init=1,
                             standardize=True,
                             samples_per_image=100,
-                            max_samples=10000,
-                            uniform_weights=False,
-                            max_covariance_samples=None,
-                            covariance_type='diag',
+                            #max_samples=300000,
+                            max_samples=200000,
+                            uniform_weights=True,
+                            max_covariance_samples=20000,
+                            covariance_type='tied',
                             logratio_thresh=-np.inf,
                             std_thresh_frame=0,
-                            channel_mode='separate',
+                            channel_mode='together',
+                            coding='soft',
 
                             normalize_globally=False,
-                            min_covariance=0.1,
-                            std_thresh=0.002,
-                            standardization_epsilon=0.001,
-                            code_bkg=True,
+                            min_covariance=0.0075,
+                            std_thresh=0.01,
+                            standardization_epsilon=10 / 255,
+                            code_bkg=False,
+
+                            whitening_epsilon=None,
+                            min_count=0,
                             )
 
             layers += [
-                pnet.OrientedGaussianPartsLayer(n_parts=2, n_orientations=8,
-                                                part_shape=(3, 3),
+                pnet.OrientedGaussianPartsLayer(n_parts=1000, n_orientations=1,
+                                                part_shape=(6, 6),
                                                 settings=settings),
-                pnet.PoolingLayer(shape=(2, 2), strides=(1, 1)),
             ]
-            layers += [
-                pnet.OrientedPartsLayer(n_parts=400,
-                                        n_orientations=1,
-                                        part_shape=(part_size, part_size),
-                                        settings=dict(outer_frame=1,
-                                                      seed=training_seed,
-                                                      threshold=2,
-                                                      samples_per_image=20,
-                                                      max_samples=200000,
-                                                      min_prob=0.00005,)),
+        elif 0:
+            if 0:
+                settings = dict(n_iter=20,
+                                seed=0,
+                                n_init=5,
+                                standardize=True,
+                                samples_per_image=50,
+                                max_samples=20000,
+                                uniform_weights=True,
+                                #max_covariance_samples=10000,
+                                covariance_type='diag',
+                                logratio_thresh=-np.inf,
+                                std_thresh_frame=0,
+                                channel_mode='separate',
 
-            ]
+                                normalize_globally=False,
+                                min_covariance=0.1,
+                                std_thresh=0.01,
+                                standardization_epsilon=10 / 255,
+                                code_bkg=False,
+                                whitening_epsilon=None,
+                                )
+
+                layers += [
+                    pnet.OrientedGaussianPartsLayer(n_parts=24, n_orientations=1,
+                                                    part_shape=(3, 3),
+                                                    settings=settings),
+                ]
+            else:
+                layers += [
+                    pnet.KMeansPartsLayer(24, (4, 4), settings=dict(
+                                                              seed=0,
+                                                              n_per_image=50,
+                                                              n_samples=20000,
+                                                              n_init=5,
+                                                              max_iter=300,
+                                                              n_jobs=1,
+                                                              random_centroids=False,
+                                                              code_bkg=False,
+                                                              std_thresh=0.01,
+                                                              whitening_epsilon=0.1,
+                                                              coding='triangle',
+                                                              )),
+                ]
+
+            if 0:
+                layers += [
+                    pnet.PoolingLayer(final_shape=(14, 14), operation='sum'),
+                    pnet.OrientedGaussianPartsLayer(n_parts=400,
+                                            n_orientations=1,
+                                            part_shape=(4, 4),
+                                            settings=dict(
+                                                            n_iter=20,
+                                                            seed=training_seed,
+                                                            n_init=1,
+                                                            standardize=False,
+                                                            samples_per_image=100,
+                                                            max_samples=10000,
+                                                            max_covariance_samples=1000,
+                                                            uniform_weights=True,
+                                                            covariance_type='tied',
+                                                            logratio_thresh=-np.inf,
+                                                            std_thresh_frame=0,
+                                                            channel_mode='together',
+
+                                                            min_covariance=0.1,
+                                                            std_thresh=0.01,
+                                                            code_bkg=False,
+                                                            whitening_epsilon=None,
+                                                          )),
+
+                ]
+            elif 0:
+                layers += [
+                    pnet.PoolingLayer(shape=(3, 3), strides=(1, 1)),
+                    pnet.OrientedPartsLayer(n_parts=500,
+                                            n_orientations=1,
+                                            part_shape=(6, 6),
+                                            settings=dict(outer_frame=1,
+                                                          seed=training_seed,
+                                                          threshold=2,
+                                                          samples_per_image=100,
+                                                          max_samples=300000,
+                                                          min_covariance=0.1,
+                                                          std_thresh=0.01,
+                                                          standardization_epsilon=10 / 255,
+                                                          standardize=False,
+                                                          min_prob=0.0005,)),
+
+                ]
+            else:
+                layers += [
+                    #pnet.PoolingLayer(shape=(2, 2), strides=(1, 1), settings=dict(output_dtype='float32')),
+                    pnet.KMeansPartsLayer(400, (6, 6), settings=dict(
+                                                              seed=0,
+                                                              n_per_image=100,
+                                                              n_samples=100000,
+                                                              n_init=1,
+                                                              max_iter=300,
+                                                              n_jobs=1,
+                                                              random_centroids=False,
+                                                              code_bkg=False,
+                                                              std_thresh=0.01,
+                                                              whitening_epsilon=0.1,
+                                                              standardize=False,
+                                                              whiten=False,
+                                                              coding='triangle',
+                                                              )),
+                ]
         elif 0:
             layers += [
                 pnet.OrientedPartsLayer(numParts, num_orientations, (part_size, part_size), settings=dict(outer_frame=2,
@@ -124,14 +226,15 @@ if __name__ == '__main__':
                 pnet.KMeansPartsLayer(400, (part_size, part_size), settings=dict(
                                                           seed=training_seed,
                                                           n_per_image=100,
-                                                          #n_samples=100000,
-                                                          n_samples=10000,
+                                                          n_samples=100000,
                                                           n_init=1,
                                                           max_iter=300,
                                                           n_jobs=1,
                                                           random_centroids=False,
                                                           code_bkg=False,
                                                           std_thresh=0.01,
+                                                          whitening_epsilon=0.1,
+                                                          coding='soft',
                                                           )),
             ]
 

@@ -18,6 +18,7 @@ from .crop_layer import CropLayer
 from .parts_net import PartsNet
 from .feature_combiner_layer import FeatureCombinerLayer
 from .mixture_classification_layer import MixtureClassificationLayer
+from .gmm_classification_layer import GMMClassificationLayer
 from .rotation_mixture_classification_layer import \
     RotationMixtureClassificationLayer
 from .svm_classification_layer import SVMClassificationLayer
