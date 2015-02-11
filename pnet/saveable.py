@@ -3,7 +3,8 @@ from .named_registry import NamedRegistry
 
 # Which backend (it needs to have load and save)
 #import numpy as backend 
-import amitgroup.io as backend
+import deepdish.io as backend
+
 
 class Saveable(object):
     @classmethod
@@ -13,7 +14,7 @@ class Saveable(object):
         else:
             d = backend.load(path)#.flat[0]
             return cls.load_from_dict(d)
-        
+
     def save(self, path):
         backend.save(path, self.save_to_dict())
 
@@ -31,7 +32,7 @@ class SaveableRegistry(Saveable, NamedRegistry):
         if path is None:
             return cls.load_from_dict({})
         else:
-            d = backend.load(path)#.flat[0]
+            d = backend.load(path)
             # Check class type
             class_name = d.get('name')
             if class_name is not None:
@@ -43,4 +44,3 @@ class SaveableRegistry(Saveable, NamedRegistry):
         d = self.save_to_dict()
         d['name'] = self.name 
         backend.save(path, d)
-     

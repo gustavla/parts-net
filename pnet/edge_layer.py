@@ -12,11 +12,11 @@ class EdgeLayer(Layer):
     @property
     def pos_matrix(self):
         if self._edge_settings.get('preserve_size', True):
-            return pnet.matrix.identiy()
+            return pnet.matrix.identity()
         else:
             return pnet.matrix.translation(-2, -2)
 
-    def extract(self, phi, data):
+    def _extract(self, phi, data):
         X = phi(data)
         if isinstance(X, list):
             return [ag.features.bedges(Xi, **self._edge_settings) for Xi in X]

@@ -273,7 +273,7 @@ class OrientedGaussianPartsLayer(Layer):
             return f
 
 
-    def extract(self, phi, data):
+    def _extract(self, phi, data):
         assert self.trained, "Must be trained before calling extract"
         X = phi(data)
 
@@ -343,7 +343,7 @@ class OrientedGaussianPartsLayer(Layer):
     def whiten_patches(self, flat_patches):
         return np.dot(self._whitening_matrix, flat_patches.T).T
 
-    def train(self, phi, data, y=None):
+    def _train(self, phi, data, y=None):
         X = phi(data)
         raw_originals, the_rest = self._get_patches(X)
         self._train_info = {}

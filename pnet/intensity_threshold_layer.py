@@ -9,7 +9,7 @@ class IntensityThresholdLayer(Layer):
     def __init__(self, threshold=0.5):
         self._threshold = threshold
 
-    def extract(self, phi, data):
+    def _extract(self, phi, data):
         X = phi(data)
         return (X > 0.5).astype(np.uint8)[...,np.newaxis] 
 

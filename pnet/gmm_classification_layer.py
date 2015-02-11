@@ -43,7 +43,7 @@ class GMMClassificationLayer(SupervisedLayer):
     def classifier(self):
         return True
 
-    def extract(self, phi, data):
+    def _extract(self, phi, data):
         assert self.trained, "Must train model first"
         X = phi(data)
 
@@ -76,7 +76,7 @@ class GMMClassificationLayer(SupervisedLayer):
         yhat = all_logprobs.argmax(0)
         return yhat
 
-    def train(self, phi, data, y):
+    def _train(self, phi, data, y):
         import types
         if isinstance(data, types.GeneratorType):
             Xs = []

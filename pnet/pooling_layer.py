@@ -32,7 +32,7 @@ class PoolingLayer(Layer):
         else:
             return self._strides
 
-    def extract(self, phi, data):
+    def _extract(self, phi, data):
         X_F = phi(data)
         output_dtype = self._settings.get('output_dtype')
         if isinstance(X_F, tuple):
@@ -58,7 +58,7 @@ class PoolingLayer(Layer):
                 raise ValueError('Unknown pooling operation: {}'.format(
                                  self._operation))
 
-            c = ag.apply_over(np.mean, feature_map, [0, 1, 2], keepdims=False)
+            c = ag.apply_once(np.mean, feature_map, [0, 1, 2], keepdims=False)
             self._extract_info['concentration'] = c
 
             if output_dtype is not None:

@@ -27,7 +27,7 @@ class MixtureClassificationLayer(SupervisedLayer):
     def classifier(self):
         return True
 
-    def extract(self, phi, data):
+    def _extract(self, phi, data):
         X = phi(data)
         XX = X[:, np.newaxis, np.newaxis]
         theta = self._models[np.newaxis]
@@ -44,7 +44,7 @@ class MixtureClassificationLayer(SupervisedLayer):
             yhat = np.argmax(bb.max(-1), axis=1)
         return yhat
 
-    def train(self, phi, data, y):
+    def _train(self, phi, data, y):
         import types
         if isinstance(data, types.GeneratorType):
             Xs = []

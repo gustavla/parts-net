@@ -12,7 +12,7 @@ class SpreadingLayer(Layer):
         self._spread = spread
         self._extract_info = {}
 
-    def extract(self, phi, data):
+    def _extract(self, phi, data):
         X = phi(data)
 
         feature_map = ag.features.bspread(X, spread=self._spread,

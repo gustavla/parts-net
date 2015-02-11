@@ -18,14 +18,14 @@ class FeatureCombinerLayer(Layer):
     def trained(self):
         return self._trained
 
-    def train(self, phi, data, y=None):
+    def _train(self, phi, data, y=None):
         X = phi(data)
         for layer in self._layers:
             layer.train(X, y)
 
         self._trained = True
 
-    def extract(self, phi, data):
+    def _extract(self, phi, data):
         X = phi(data)
         features = []
         for layer in self._layers:

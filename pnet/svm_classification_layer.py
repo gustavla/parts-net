@@ -25,7 +25,7 @@ class SVMClassificationLayer(SupervisedLayer):
     def classifier(self):
         return True
 
-    def extract(self, phi, data):
+    def _extract(self, phi, data):
         X = phi(data)
         Xflat = X.reshape((X.shape[0], -1))
 
@@ -36,7 +36,7 @@ class SVMClassificationLayer(SupervisedLayer):
 
         return self._svm.predict(Xflat)
 
-    def train(self, phi, data, y):
+    def _train(self, phi, data, y):
         import types
         if isinstance(data, types.GeneratorType):
             Xs = []

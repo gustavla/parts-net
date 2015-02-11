@@ -39,7 +39,7 @@ class OrientedPartsLayer(Layer):
                               n_iter=8,
                               threshold=0.0,
                               samples_per_image=40,
-                              max_samples=np.inf,
+                              max_samples=10000,
                               seed=0,
                               min_prob=0.005,
                               min_count=20,
@@ -72,8 +72,15 @@ class OrientedPartsLayer(Layer):
     def pos_matrix(self):
         return self.conv_pos_matrix(self._part_shape)
 
-    def extract(self, phi, data):
-        import amitgroup as ag
+    @property
+    def visualized_parts(self):
+        return self._visparts
+
+    @property
+    def parts(self):
+        return self._parts
+
+    def _extract(self, phi, data):
         with ag.Timer('extract inside parts'):
             im = phi(data)
 
@@ -122,7 +129,7 @@ class OrientedPartsLayer(Layer):
     def trained(self):
         return self._parts is not None
 
-    def train(self, phi, data, y=None):
+    def _train(self, phi, data, y=None):
         raw_patches, raw_originals = self._get_patches(phi, data)
         assert len(raw_patches), "No patches found"
 
@@ -314,13 +321,14 @@ class OrientedPartsLayer(Layer):
 
         batch_size = 20
 
-        max_samples = self._settings.get('max_samples', np.inf)
+        max_samples = self._settings.get('max_samples', 10000)
 
         patches_sh = ((max_samples, self._num_orientations) +
                       self._part_shape + (E,))
         the_patches = np.zeros(patches_sh)
         orig_sh = (max_samples, self._num_orientations) + (3, 3)
         the_originals = np.zeros(orig_sh)
+        #the_originals = []
         consecutive_failures = 0
 
         rs = np.random.RandomState(0)
@@ -452,11 +460,12 @@ class OrientedPartsLayer(Layer):
                                 try:
                                     patch[ori] = X[selection]
                                 except:
-                                    print('Skipping', selection)
+                                    #print('Skipping', selection)
                                     br = True
                                     break
 
-                                # orig = all_img[selection_orig]
+                                #orig = all_img[selection_orig]
+                                #orig = data_padded[selection_orig]
                                 orig = np.zeros((3, 3))
                                 vispatch.append(orig)
                                 sels.append(selection)
@@ -483,7 +492,7 @@ class OrientedPartsLayer(Layer):
                                                          axis=0)
 
                             # the_patches.append(patch)
-                            # the_originals.append(vispatch)
+                            #the_originals.append(vispatch)
                             the_patches[c] = patch
                             the_originals[c] = vispatch
                             c += 1

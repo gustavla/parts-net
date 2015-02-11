@@ -1,14 +1,14 @@
 from __future__ import division, print_function, absolute_import
 
-from .saveable import SaveableRegistry
+from deepdish.util.saveable import SaveableRegistry
 import pnet
 
 @SaveableRegistry.root
 class Layer(SaveableRegistry):
-    def train(self, phi, data, y=None):
+    def _train(self, phi, data, y=None):
         pass
 
-    def extract(self, phi, data):
+    def _extract(self, phi, data):
         raise NotImplemented("Subclass and override to use")
 
     @property

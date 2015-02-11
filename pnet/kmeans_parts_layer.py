@@ -58,7 +58,7 @@ class KMeansPartsLayer(Layer):
     def pos_matrix(self):
         return self.conv_pos_matrix(self._part_shape)
 
-    def extract(self, phi, data):
+    def _extract(self, phi, data):
         assert self.trained, "Must be trained before calling extract"
         X = phi(data)
 
@@ -131,7 +131,7 @@ class KMeansPartsLayer(Layer):
     def whiten_patches(self, flat_patches):
         return np.dot(self._whitening_matrix, flat_patches.T).T
 
-    def train(self, phi, data, y=None):
+    def _train(self, phi, data, y=None):
         assert y is None
         n_samples = self._settings['n_samples']
         n_per_image = self._settings['n_per_image']

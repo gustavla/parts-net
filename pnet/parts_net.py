@@ -75,13 +75,12 @@ class PartsNet(Layer):
 
             class F(ExtractionFunction):
                 def __call__(self, x):
-                    import gv
                     if parent_self.caching:
                         h = smart_hash(x)
                         if h in self._cache:
                             return self._cache[h]
 
-                    v = self.layer.extract(self.phi, x)
+                    v = self.layer._extract(self.phi, x)
 
                     if parent_self.caching:
                         self._cache[h] = v
@@ -99,7 +98,10 @@ class PartsNet(Layer):
         # before storing it
         self._extract_funcs = fs
 
-    def train(self, phi, data, y=None):
+    def train(self, data, y=None):
+        return self._train(lambda x: x, data, y=y)
+
+    def _train(self, phi, data, y=None):
         X = phi(data)
         self._prepare_extract_funcs()
 
@@ -130,7 +132,7 @@ class PartsNet(Layer):
 
             if not layer.trained:
                 ag.info('Training layer {}...'.format(l))
-                layer.train(self._extract_funcs[l], X, y=y)
+                layer._train(self._extract_funcs[l], X, y=y)
                 ag.info('Done.')
 
         # Here There
@@ -140,11 +142,11 @@ class PartsNet(Layer):
         self._trained = True
 
     def test(self, X, y):
-        yhat = self.extract(X)
+        yhat = self.classify(X)
         return yhat == y
 
     def classify(self, X):
-        return self.extract(lambda x: x, X, classify=True)
+        return self.extract(X, classify=True)
 
     def first_classifier_index(self):
         is_classifier = [layer.classifier for layer in self.layers]
@@ -153,7 +155,10 @@ class PartsNet(Layer):
         except ValueError:
             return len(self.layers)
 
-    def extract(self, phi, data, classify=False, layer=None):
+    def extract(self, data, classify=False, layer=None):
+        return self._extract(lambda x: x, data, classify=classify, layer=layer)
+
+    def _extract(self, phi, data, classify=False, layer=None):
         X = phi(data)
         if layer is None:
             index = len(self.layers)-1 if classify \

@@ -29,7 +29,7 @@ class RotationMixtureClassificationLayer(SupervisedLayer):
     def classifier(self):
         return True
 
-    def extract(self, phi, data):
+    def _extract(self, phi, data):
         Z, F = phi(data)[:2]
         from pnet.cyfuncs import index_map_pooling_multi as poolf
         X = poolf(Z, F, self._pooling_settings['shape'],
@@ -46,7 +46,7 @@ class RotationMixtureClassificationLayer(SupervisedLayer):
             yhat = np.argmax(bb.max(-1), axis=1)
         return yhat
 
-    def train(self, phi, data, y):
+    def _train(self, phi, data, y):
         X_n = phi(data)
         X = X_n[0]
         num_parts = X_n[1]
