@@ -284,8 +284,10 @@ class PermutationGMM(BaseEstimator):
 
                 self.means_ = clf.means_.reshape((K,) + X.shape[1:])
             else:
+                # TODO: Does not initialize permutations in a coherent way, but
+                # this might not be needed anyway
                 rs = np.random.RandomState(trial)  # TODO: Insert seed
-                mm = rs.multivariate_normal(np.zeros(F), cv, size=K)
+                mm = rs.multivariate_normal(np.zeros(F), cv, size=K * P)
                 self.means_ = mm.reshape((K,) + X.shape[1:])
 
             if self._covtype == 'ones':

@@ -72,7 +72,7 @@ def score_samples(X, means, weights, covars, covariance_type='diag'):
                                            covariance_type)
            + np.log(weights))
 
-    logprob = logsumexp(lpr, axis=1)
+    logprob = logsumexp(lpr.clip(min=-300), axis=1)
     #responsibilities = np.exp(lpr - logprob[:, np.newaxis])
     log_resp = lpr - logprob[:, np.newaxis]
     return logprob, log_resp
@@ -172,6 +172,10 @@ class OrientedGaussianPartsLayer(Layer):
     @property
     def part_shape(self):
         return self._part_shape
+
+    @property
+    def visualized_parts(self):
+        return self._visparts
 
     def _prepare_covariance(self):
         cov_type = self._settings['covariance_type']
