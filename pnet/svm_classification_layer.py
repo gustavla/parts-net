@@ -3,7 +3,7 @@ from pnet.layer import SupervisedLayer
 from pnet.layer import Layer
 import numpy as np
 import amitgroup as ag
-from sklearn.svm import LinearSVC
+from sklearn.svm import LinearSVC as SVM
 from sklearn import cross_validation
 
 
@@ -75,7 +75,7 @@ class SVMClassificationLayer(SupervisedLayer):
                     Cs = 10**np.linspace(-1, -5, 10)
                 avg_scores = np.zeros(len(Cs))
                 for i, C in enumerate(Cs):
-                    clf = LinearSVC(C=C, random_state=seed)
+                    clf = SVM(C=C, random_state=seed)
 
                     # This contains some temporary code for better cross
                     # validation on NORB
@@ -110,11 +110,13 @@ class SVMClassificationLayer(SupervisedLayer):
                 Ci = np.argmax(avg_scores)
                 C = Cs[Ci]
 
-                clf = LinearSVC(C=C, random_state=seed)
+                # Update the penalty to the selected one
+                self._penalty = C
+                clf = SVM(C=C, random_state=seed)
                 clf.fit(Xflat, y)
 
             else:
-                clf = LinearSVC(C=self._penalty, random_state=seed)
+                clf = SVM(C=self._penalty, random_state=seed)
                 clf.fit(Xflat, y)
 
         # Check training error rate
@@ -143,10 +145,14 @@ class SVMClassificationLayer(SupervisedLayer):
 
     def save_to_dict(self):
         d = {}
-        d['svm'] = self._svm
         d['settings'] = self._settings
         d['extra'] = self._extra
         d['penalty'] = self._penalty
+        d['svm'] = dict(class_weight=self._svm.class_weight_,
+                        coef=self._svm.coef_,
+                        raw_coef=self._svm.raw_coef_,
+                        intercept=self._svm.intercept_,
+                        classes=self._svm.classes_)
         return d
 
     @classmethod
@@ -154,5 +160,17 @@ class SVMClassificationLayer(SupervisedLayer):
         obj = cls(C=d['penalty'])
         obj._settings = d['settings']
         obj._extra = d['extra']
-        obj._svm = d['svm']
+
+        # Reconstruct the SVM object. This is a bit clonky and I should
+        # probably just preform the prediction manually from coef and
+        # intercept.
+        obj._svm = SVM(C=d['penalty'], random_state=obj._settings.get('seed', 0))
+        svm = d['svm']
+        from sklearn.preprocessing.label import LabelEncoder
+        obj._svm._enc = LabelEncoder()
+        obj._svm._enc.classes_ = svm['classes']
+        obj._svm.class_weight_ = svm['coef']
+        obj._svm.coef_ = svm['coef']
+        obj._svm.raw_coef_ = svm['raw_coef']
+        obj._svm.intercept_ = svm['intercept']
         return obj
