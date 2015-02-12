@@ -5,10 +5,11 @@ import numpy as np
 
 @Layer.register('standardization-layer')
 class StandardizationLayer(Layer):
-    def __init__(self, epsilon=0.1):
+    def __init__(self, epsilon=0.1, bias=0.0):
         self._means = None
         self._vars = None
         self._epsilon = epsilon
+        self._bias = bias
 
     @property
     def trained(self):
@@ -26,17 +27,18 @@ class StandardizationLayer(Layer):
         Xflat = X.reshape((X.shape[0], -1)).astype(np.float64)
         Xflat = (Xflat - self._means) / np.sqrt(self._vars + self._epsilon)
 
-        return Xflat.reshape(X.shape)
+        return Xflat.reshape(X.shape) + self._bias
 
     def save_to_dict(self):
         d = {}
         d['means'] = self._means
         d['vars'] = self._vars
         d['epsilon'] = self._epsilon
+        d['bias'] = self._bias
         return d
 
     @classmethod
     def load_from_dict(cls, d):
-        obj = cls(epsilon=d['epsilon'])
+        obj = cls(epsilon=d['epsilon'], bias=d['bias'])
         obj._means = d['means']
         obj._vars = d['vars']
