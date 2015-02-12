@@ -14,6 +14,7 @@ from .oriented_gaussian_parts_layer import OrientedGaussianPartsLayer
 #from .binary_tree_parts_layer import BinaryTreePartsLayer
 #from .random_forest_parts_layer import RandomForestPartsLayer
 from .standardization_layer import StandardizationLayer
+from .rectifier_layer import RectifierLayer
 from .resize_layer import ResizeLayer
 from .crop_layer import CropLayer
 from .parts_net import PartsNet
