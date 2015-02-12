@@ -230,7 +230,7 @@ class OrientedGaussianPartsLayer(Layer):
     def pos_matrix(self):
         return self.conv_pos_matrix(self._part_shape)
 
-    def __extract(self, X, covar, img_stds):
+    def __extract_helper(self, X, covar, img_stds):
         flatXij_patch = X.reshape((X.shape[0], -1))
         if self._settings['normalize_globally']:
             not_ok = (flatXij_patch.std(-1) / img_stds <= self._settings['std_thresh'])
@@ -276,7 +276,7 @@ class OrientedGaussianPartsLayer(Layer):
             f[not_ok] = self._min_log_prob
             return f
         elif coding == 'raw':
-            return logprob
+            return logprob[:, np.newaxis] + log_resp
 
     def _extract(self, phi, data):
         assert self.trained, "Must be trained before calling extract"
@@ -306,18 +306,18 @@ class OrientedGaussianPartsLayer(Layer):
             feature_map = -np.ones((X.shape[0],) + dim, dtype=np.int64)
         elif coding == 'triangle':
             feature_map = np.zeros((X.shape[0],) + dim + (self.num_parts,), dtype=np.float32)
-        elif coding == 'soft':
+        elif coding in ('soft', 'raw'):
             feature_map = np.empty((X.shape[0],) + dim + (self.num_parts,), dtype=np.float32)
             feature_map[:] = self._min_log_prob
 
         for i, j in itr.product(range(dim[0]), range(dim[1])):
             Xij_patch = X[:, i:i+ps[0], j:j+ps[1]]
             if channel_mode == 'together':
-                feature_map[:, i, j, 0] = self.__extract(Xij_patch, covar,
-                                                         img_stds)
+                feature_map[:, i, j, 0] = self.__extract_helper(Xij_patch, covar,
+                                                                img_stds)
             elif channel_mode == 'separate':
                 for c in range(C):
-                    f = self.__extract(Xij_patch[...,c], covar, img_stds)
+                    f = self.__extract_helper(Xij_patch[...,c], covar, img_stds)
                     assert f.dtype in [np.int64, np.int32]
                     f[f != -1] += c * self.num_parts
                     feature_map[:, i, j, c] = f
