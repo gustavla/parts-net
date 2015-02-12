@@ -148,7 +148,7 @@ class PermutationMM(BaseEstimator):
 
             # Initialize by picking K components at random.
             repr_samples = X[self.random_state.choice(N, K, replace=False)]
-            self.means_ = repr_samples.clip(eps, 1 - eps)
+            self.means_ = repr_samples.clip(0.2, 0.8)
 
             loglikelihoods = []
             self.converged_ = False
