@@ -275,7 +275,8 @@ class OrientedGaussianPartsLayer(Layer):
             f = np.maximum(self._min_log_prob, log_resp)
             f[not_ok] = self._min_log_prob
             return f
-
+        elif coding == 'raw':
+            return logprob
 
     def _extract(self, phi, data):
         assert self.trained, "Must be trained before calling extract"
