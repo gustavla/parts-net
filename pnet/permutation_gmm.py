@@ -102,7 +102,7 @@ class PermutationGMM(BaseEstimator):
                         cov=cov)
 
         unorm_reshaped = unorm_log_resp.reshape((unorm_log_resp.shape[0], -1))
-        logprob = logsumexp(unorm_reshaped, axis=-1)
+        logprob = logsumexp(unorm_reshaped.clip(min=-500), axis=-1)
         log_resp = unorm_log_resp - logprob[..., np.newaxis, np.newaxis]
         log_resp = log_resp.clip(min=-500)
 
