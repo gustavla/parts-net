@@ -42,3 +42,4 @@ class StandardizationLayer(Layer):
         obj = cls(epsilon=d['epsilon'], bias=d['bias'])
         obj._means = d['means']
         obj._vars = d['vars']
+        return obj

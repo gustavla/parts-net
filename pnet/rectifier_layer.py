@@ -23,3 +23,4 @@ class RectifierLayer(Layer):
     @classmethod
     def load_from_dict(cls, d):
         obj = cls(rectifier=d['rectifier'])
+        return obj
