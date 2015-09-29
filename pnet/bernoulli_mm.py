@@ -134,7 +134,7 @@ class BernoulliMM(BaseEstimator):
     """
     def __init__(self, n_components=1,
                  random_state=None, thresh=1e-6, min_prob=1e-2, min_num=30,
-                 n_iter=100,tol=1e-6, n_init=1, params='wm', init_params='wm',blocksize=0,
+                 n_iter=100,tol=1e-6, n_init=1, allocate='True', params='wm', init_params='wm',blocksize=0,
                  float_type=np.float64,
                  binary_type=np.uint8, verbose=False):
         self.n_components = n_components
@@ -146,6 +146,7 @@ class BernoulliMM(BaseEstimator):
         self.init_params = init_params
         self.float_type = float_type
         self.binary_type = binary_type
+        self.allocate=allocate
         self.min_prob = min_prob
         self.min_num = 30
         self.verbose=verbose
@@ -350,7 +351,7 @@ class BernoulliMM(BaseEstimator):
                 if self.verbose:
                     print("Initializing means")
 
-                if 0:
+                if self.allocate:
                     indices = np.arange(X.shape[0])
                     random_state.shuffle(indices)
                     self.means_ = np.array(tuple(
@@ -358,19 +359,20 @@ class BernoulliMM(BaseEstimator):
                                 self.min_prob,
                                 1-self.min_prob)
                         for i in range(self.n_components)))
-
-                repr_samples = X[random_state.choice(X.shape[0], self.n_components, replace=False)]
+                else:
+                    repr_samples = X[random_state.choice(X.shape[0], self.n_components, replace=False)]
                 #self.means_ = repr_samples.clip(self.min_prob, 1 - self.min_prob)
-                self.means_ = repr_samples.clip(0.2, 0.8)
+                    self.means_ = repr_samples.clip(0.2, 0.8)
+                    if 'w' in self.init_params or not hasattr(self,'weights_'):
+                        if self.verbose:
+                            print("Initializing weights")
+
+                        self.weights_ = np.tile(1.0 / self.n_components,
+                                        self.n_components)
 
             self.log_odds_, self.log_inv_mean_sums_ = _compute_log_odds_inv_means_sums(self.means_)
 
-            if 'w' in self.init_params or not hasattr(self,'weights_'):
-                if self.verbose:
-                    print("Initializing weights")
 
-                self.weights_ = np.tile(1.0 / self.n_components,
-                                        self.n_components)
 
 
 

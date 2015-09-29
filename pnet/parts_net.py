@@ -131,8 +131,14 @@ class PartsNet(Layer):
                 break
 
             if not layer.trained:
-                ag.info('Training layer {}...'.format(l))
+                ag.info('Training '+layers[l].name+' {}...'.format(l))
                 layer._train(self._extract_funcs[l], X, y=y)
+                # Prune layers in previous combiner layer based on use in current layer
+                if (hasattr(layer,'III')):
+                    new_layers=[]
+                    for i in layer.III[0]:
+                        new_layers.append(layers[l-1]._layers[i])
+                    layers[l-1]._layers=new_layers
                 ag.info('Done.')
 
         # Here There
@@ -205,3 +211,5 @@ class PartsNet(Layer):
     def __repr__(self):
         return 'PartsNet(n_layers={n_layers})'.format(
                n_layers=len(self._layers))
+
+

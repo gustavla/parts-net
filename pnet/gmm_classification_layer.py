@@ -9,14 +9,14 @@ import amitgroup as ag
 
 @Layer.register('gmm-classification-layer')
 class GMMClassificationLayer(SupervisedLayer):
-    def __init__(self, n_components=1, settings={}):
-        self._n_components = n_components
-        self._models = None
+    def __init__(self, settings={}):
+
         self._settings = dict(
+                              n_components=1,
                               n_iter=10,
                               n_init=1,
                               seed=0,
-                              covariance_type='tied',
+                              covariance_type='diag',
                               min_covariance=0.01,
                               adaptive_min_covariance=False,
                               max_covariance_samples=None,
@@ -28,8 +28,9 @@ class GMMClassificationLayer(SupervisedLayer):
                 raise ValueError("Unknown settings: {}".format(k))
             else:
                 self._settings[k] = v
+        self._n_components = self._settings["n_components"]
+        self._models = None
 
-        settings
         self._extra = {}
 
     @property
@@ -62,7 +63,7 @@ class GMMClassificationLayer(SupervisedLayer):
         for k, model in enumerate(self._models):
             means = model['means']
             means = means.reshape(means.shape[0], -1)
-            logprob, log_resp = score_samples(Xflat, means,
+            logprob, log_resp, lpr = score_samples(Xflat, means,
                                               model['weights'].ravel(),
                                               model['covar'],
                                               covariance_type=cov_type)
@@ -70,26 +71,18 @@ class GMMClassificationLayer(SupervisedLayer):
             if self._settings['standardize']:
                 logprob = (logprob - self.standarization_info[k]['mean']) / self.standarization_info[k]['std']
 
-            all_logprobs[k] = logprob
-
+            #all_logprobs[k] = logprob
+            all_logprobs[k]=np.max(logprob[:, np.newaxis] + log_resp, axis=1)
         # Now fetch classes
         yhat = all_logprobs.argmax(0)
         return yhat
 
+
+
     def _train(self, phi, data, y):
         import types
-        if isinstance(data, types.GeneratorType):
-            Xs = []
-            c = 0
-            for i, batch in enumerate(data):
-                Xi = phi(batch)
-                Xs.append(Xi)
-                c += Xi.shape[0]
-                ag.info('SVM: Has extracted', c)
 
-            X = np.concatenate(Xs, axis=0)
-        else:
-            X = phi(data)
+        X = phi(data)
 
         #ag.io.save('train-x.h5', X)
         #ag.io.save('train-y.h5', y)
@@ -109,7 +102,7 @@ class GMMClassificationLayer(SupervisedLayer):
         covar_limit = self._settings['max_covariance_samples']
         cov_type = self._settings['covariance_type']
 
-        entropies = np.zeros(K)
+
 
         self.standarization_info = []
 
@@ -117,6 +110,7 @@ class GMMClassificationLayer(SupervisedLayer):
 
         for k in range(K):
             Xk = X[y == k]
+            datak=data[y==k]
             Xk = Xk.reshape((Xk.shape[0], 1, -1))
 
             from pnet.permutation_gmm import PermutationGMM
@@ -134,30 +128,32 @@ class GMMClassificationLayer(SupervisedLayer):
             mm.fit(Xk)
             print('Done.')
 
-            if te is None and self._settings['adaptive_min_covariance']:
-                te = mm._entropy
-            entropies[k] = mm._entropy
+
 
             print('Predicting')
             comps = mm.predict(Xk)
+
+
+            def mean0(x):
+                if x.shape[0] == 0:
+                    return np.zeros(x.shape[1:])
+                else:
+                    return np.mean(x, axis=0)
+
+            visparts=[]
+            for kk in range(mm.n_components):
+                visparts.append(np.mean(datak[comps[:, 0] == kk],axis=0))
+
+            visparts=np.array(visparts)
             #ii = mm.predict_flat(X)
 
-            logprob, log_resp = mm.score_block_samples(Xk)
+            logprob, log_resp, lpr = mm.score_block_samples(Xk)
             ii = log_resp.reshape((log_resp.shape[0], -1)).argmax(-1)
 
             # Standardize the logprob
             if self._settings['standardize']:
                 mean = logprob.mean(0)
                 std = logprob.std(0)
-
-
-                from vzlog.default import vz
-                import pylab as plt
-                plt.figure()
-                plt.hist(logprob)
-                plt.savefig(vz.impath('svg'))
-                plt.close()
-
                 info = dict(mean=mean, std=std)
                 self.standarization_info.append(info)
                 print('info', info)
@@ -182,14 +178,14 @@ class GMMClassificationLayer(SupervisedLayer):
 
             mm_models.append(dict(means=mu,
                                   weights=weights,
-                                  covar=covar))
+                                  covar=covar,
+                                  visparts=visparts))
 
             np.set_printoptions(precision=2, suppress=True)
             print('Weights:', weights)
             print('Weights sorted:', np.sort(weights)[::-1])
 
-        print('entropies', entropies)
-        print('std entropies', np.std(entropies))
+
 
         self._models = mm_models
 
@@ -212,6 +208,7 @@ class GMMClassificationLayer(SupervisedLayer):
 
     def save_to_dict(self):
         d = {}
+        d['settings'] = self._settings
         d['n_components'] = self._n_components
         d['models'] = self._models
         d['extra'] = self._extra
@@ -220,7 +217,7 @@ class GMMClassificationLayer(SupervisedLayer):
 
     @classmethod
     def load_from_dict(cls, d):
-        obj = cls(n_components=d['n_components'])
+        obj = cls(settings=d['settings'])
         obj._models = d['models']
         obj._extra = d['extra']
         return obj

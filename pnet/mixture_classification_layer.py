@@ -3,17 +3,30 @@ from pnet.layer import SupervisedLayer
 from pnet.layer import Layer
 import numpy as np
 from pnet.bernoulli_mm import BernoulliMM
-from scipy.special import logit
+from Draw_means import show_visparts
 import amitgroup as ag
 
 
 @Layer.register('mixture-classification-layer')
 class MixtureClassificationLayer(SupervisedLayer):
-    def __init__(self, n_components=1, min_prob=0.0001, settings={}):
-        self._n_components = n_components
-        self._min_prob = min_prob
+    def __init__(self, settings={}):
+        self._settings=dict(num_components=1,
+                            min_prob=.0001,
+                            seed=None,
+                            standardize=False,
+                            classify=True,
+                            subclassify=False,
+                            allocate=True,
+                            num_train=None,
+                            min_count=0)
+        for k, v in settings.items():
+            if k not in self._settings:
+                    raise ValueError("Unknown settings: {}".format(k))
+            else:
+                self._settings[k] = v
+        self._n_components = self._settings['num_components']
+        self._min_prob = self._settings['min_prob']
         self._models = None
-        self._settings = settings
         self._extra = {}
 
     @property
@@ -29,96 +42,106 @@ class MixtureClassificationLayer(SupervisedLayer):
 
     def _extract(self, phi, data):
         X = phi(data)
-        XX = X[:, np.newaxis, np.newaxis]
-        theta = self._models[np.newaxis]
+        #XX = X[:, np.newaxis, np.newaxis]
+        Xflat=X.reshape((X.shape[0],np.prod(X.shape[1:])))
+        C=len(self._models)
 
-        S = self._settings.get('standardize')
-        if S:
-            llh = XX * logit(theta)
-            bb = np.apply_over_axes(np.sum, llh, [-3, -2, -1])[..., 0, 0, 0]
-            bb = (bb - self._means) / self._sigmas
-            yhat = np.argmax(bb.max(-1), axis=1)
+
+        abb=np.zeros((Xflat.shape[0],C))
+        ysub=np.zeros((Xflat.shape[0],C))
+        bbout=[]
+        for c in range(C):
+            ltheta = np.log(self._models[c])
+            ltheta=ltheta.reshape((ltheta.shape[0],np.prod(ltheta.shape[1:])))
+            oltheta= np.log(1-self._models[c])
+            oltheta=oltheta.reshape((ltheta.shape[0],np.prod(ltheta.shape[1:])))
+            bb=np.dot(Xflat,ltheta.T)+np.dot(1-Xflat,oltheta.T)
+            if c>0:
+                bbout=np.concatenate((bbout,bb),axis=1)
+            else:
+                bbout=bb
+            abb[:,c]=np.max(bb,axis=1)
+            ysub[:,c]=np.argmax(bb,axis=1)
+        if self._settings.get('subclassify'):
+                return X, ysub
+        if self._settings.get('classify'):
+            yhat = np.argmax(abb, axis=1)
         else:
-            llh = XX * np.log(theta) + (1 - XX) * np.log(1 - theta)
-            bb = np.apply_over_axes(np.sum, llh, [-3, -2, -1])[..., 0, 0, 0]
-            yhat = np.argmax(bb.max(-1), axis=1)
+            return np.exp(bbout/1000)
         return yhat
 
     def _train(self, phi, data, y):
         import types
-        if isinstance(data, types.GeneratorType):
-            Xs = []
-            c = 0
-            for i, batch in enumerate(data):
-                Xi = phi(batch)
-                Xs.append(Xi)
-                c += Xi.shape[0]
-                ag.info('SVM: Has extracted', c)
+        if self._settings['num_train'] is not None:
+            data=data[0:self._settings['num_train'],:]
+            y=y[0:self._settings['num_train']]
 
-            X = np.concatenate(Xs, axis=0)
-        else:
-            X = phi(data)
+        X = phi(data)
 
         K = y.max() + 1
         mm_models = []
         mm_comps = []
         mm_weights = []
-        S = self._settings.get('standardize')
-        if S:
-            self._means = np.zeros((K, self._n_components))
-            self._sigmas = np.zeros((K, self._n_components))
-
+        mm_visparts=[]
+        quant=np.float32(X.shape[-1])
+        min_prob=1/(2*quant)
         for k in range(K):
             Xk = X[y == k]
             Xk = Xk.reshape((Xk.shape[0], -1))
+            mm = BernoulliMM(n_components=self._n_components,
+                             n_iter=10,
+                             n_init=1,
+                             thresh=1e-5,
+                             random_state=self._settings['seed'],
+                             min_prob=min_prob,
+                             blocksize=200,
+                             allocate=self._settings['allocate'],
+                             verbose=True)
+            mm.fit(Xk)
+            mm=self.organize_parts(Xk,mm,data[y==k],self._n_components, X.shape[1:])
+            mm.mu=np.floor(mm.mu*quant)/quant+1./(2*quant)
+            show_visparts(mm.visparts,1,10, True,k)
 
-            if 1:
-                mm = BernoulliMM(n_components=self._n_components,
-                                 n_iter=10,
-                                 n_init=1,
-                                 thresh=1e-5,
-                                 random_state=self._settings.get('seed', 0),
-                                 min_prob=self._min_prob,
-                                 blocksize=200,
-                                 verbose=True)
-                mm.fit(Xk)
 
-                comps = mm.predict(Xk)
-                weights = mm.weights_
-
-                mu = mm.means_.reshape((self._n_components,)+X.shape[1:])
-            else:
-                from pnet.bernoulli import em
-                ret = em(Xk, self._n_components, 10,
-                         numpy_rng=self._settings.get('seed', 0),
-                         verbose=True)
-
-                mu = ret[1].reshape((self._n_components,)+X.shape[1:])
-                comps = ret[3]
-                weights = np.exp(ret[0])
-                print('--weights', weights)
-                weights /= weights.sum()
-            mm_models.append(mu)
-            mm_comps.append(comps)
-            mm_weights.append(weights)
-
+            mm_models.append(mm.mu)
+            mm_weights.append(mm.weights_)
+            mm_visparts.append(mm.visparts)
             np.set_printoptions(precision=2, suppress=True)
-            print('Weights:', weights)
-            print('Weights sorted:', np.sort(weights)[::-1])
+            print('Weights:', mm.weights_)
 
-            # Add standardization
-            if S:
-                self._means[k] = np.apply_over_axes(np.sum,
-                                                    mu * logit(mu),
-                                                    [1, 2, 3]).ravel()
-                sig = np.apply_over_axes(np.sum,
-                                         logit(mu)**2 * mu * (1 - mu),
-                                         [1, 2, 3]).ravel()
-                self._sigmas[k] = np.sqrt(sig)
-
-        self._extra['comps'] = mm_comps
         self._extra['weights'] = mm_weights
-        self._models = np.asarray(mm_models)
+        self._extra['vis_parts'] = mm_visparts
+        self._models = mm_models
+
+
+
+    def organize_parts(self,Xflat,mm,raw_originals,ml,sh):
+        # For each data point returns part index and angle index.
+        comps = mm.predict(Xflat)
+        counts = np.bincount(comps, minlength=ml)
+        # Average all images beloinging to true part k at selected rotation given by second coordinate of comps
+        visparts = np.asarray([
+            raw_originals[comps == k,:].mean(0)
+            for k in range(ml)
+        ])
+        ww = counts / counts.sum()
+        ok = counts >= self._settings['min_count']
+        mu = mm.means_.reshape((ml,)+sh)
+        # Reject some parts
+        #ok = counts >= self._settings['min_count']
+        II = np.argsort(counts)[::-1]
+        print('Counts',np.sort(counts))
+        #II = range(len(counts))
+        II = np.asarray([ii for ii in II if ok[ii]])
+        ag.info('Keeping', len(II), 'out of', ok.size, 'parts')
+        mm._num_true_parts = len(II)
+        mm.means_ = mm.means_[II]
+        mm.weights_ = mm.weights_[II]
+        mm.counts = counts[II]
+        mm.visparts = visparts[II]
+        mm.mu=mu[II,:]
+        return(mm)
+
 
     def _vzlog_output_(self, vz):
         import pylab as plt
@@ -134,8 +157,7 @@ class MixtureClassificationLayer(SupervisedLayer):
 
     def save_to_dict(self):
         d = {}
-        d['n_components'] = self._n_components
-        d['min_prob'] = self._min_prob
+        d['settings'] = self._settings
         d['models'] = self._models
         d['extra'] = self._extra
 
@@ -143,7 +165,7 @@ class MixtureClassificationLayer(SupervisedLayer):
 
     @classmethod
     def load_from_dict(cls, d):
-        obj = cls(n_components=d['n_components'], min_prob=d['min_prob'])
+        obj = cls(settings=d['settings'])
         obj._models = d['models']
         obj._extra = d['extra']
         return obj

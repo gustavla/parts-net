@@ -5,7 +5,7 @@ from .intensity_threshold_layer import IntensityThresholdLayer
 from .edge_layer import EdgeLayer
 from .pooling_layer import PoolingLayer
 from .spreading_layer import SpreadingLayer  # TODO Temporary
-from .old_layers.parts_layer import PartsLayer
+#from .old_layers.parts_layer import PartsLayer
 from .kmeans_parts_layer import KMeansPartsLayer
 #from .gaussian_parts_layer import GaussianPartsLayer
 from .oriented_parts_layer import OrientedPartsLayer
@@ -24,6 +24,7 @@ from .gmm_classification_layer import GMMClassificationLayer
 from .rotation_mixture_classification_layer import \
     RotationMixtureClassificationLayer
 from .svm_classification_layer import SVMClassificationLayer
+from .classification_combiner_layer import ClassificationCombinerLayer
 from . import rescalc
 from . import plot
 from . import covars

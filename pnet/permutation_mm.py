@@ -52,11 +52,13 @@ class PermutationMM(BaseEstimator):
 
     """
     def __init__(self, n_components=1, permutations=1, n_iter=20, n_init=1,
-                 random_state=0, min_probability=0.05, thresh=1e-8):
+                 random_state=None, min_probability=0.05, thresh=1e-8, allocate=False):
         if not isinstance(random_state, np.random.RandomState):
-            random_state = np.random.RandomState(random_state)
+            random_state = np.random.RandomState(random_state) #random_state)
 
+        self.allocate=allocate
         self.random_state = random_state
+        print('Random State',self.random_state, self.random_state.rand())
         self.n_components = n_components
 
         if isinstance(permutations, int):
@@ -121,7 +123,7 @@ class PermutationMM(BaseEstimator):
 
         return logprob, log_resp
 
-    def fit(self, X):
+    def fit(self, X,y):
         """
         Estimate model parameters with the expectation-maximization algorithm.
 
@@ -140,18 +142,31 @@ class PermutationMM(BaseEstimator):
         assert P == len(self.permutations)
         K = self.n_components
         eps = self.min_probability
-
+        self.means_=np.zeros((K,)+X.shape[1:])
         max_log_prob = -np.inf
 
         for trial in range(self.n_init):
             self.weights_ = np.ones((K, P)) / (K * P)
 
             # Initialize by picking K components at random.
-            repr_samples = X[self.random_state.choice(N, K, replace=False)]
-            self.means_ = repr_samples.clip(0.2, 0.8)
+            if self.allocate:
+                    indices = np.arange(X.shape[0])
+                    self.random_state.shuffle(indices)
+                    Xs=np.array_split(X[indices],K,axis=0)
+                    for i,XX in enumerate(Xs):
+                        self.means_[i,:] = np.mean(XX,axis=0)
+                    self.means_=np.clip(self.means_,
+                                self.min_probability,
+                                1-self.min_probability)
 
-            loglikelihoods = []
+            else:
+                repr_samples = X[self.random_state.choice(N, K, replace=False)]
+                self.means_ = repr_samples.clip(0.2, 0.8)
+            loglikelihoods=[]
+            loglikelihoods.append(-np.inf)
             self.converged_ = False
+            if self.n_iter==0:
+                self.converged_ = True
             for loop in range(self.n_iter):
                 start = time.clock()
 
@@ -165,8 +180,10 @@ class PermutationMM(BaseEstimator):
                 dens = np.exp(log_dens)
 
                 # M-step
+                # Compute probabilities for each permutation p
                 for p in range(P):
                     v = 0.0
+                    # Add up estimates from each candidate permutation based on its weight.
                     for shift in range(P):
                         p0 = self.permutations[shift, p]
                         v += np.dot(resp[:, :, shift].T, X[:, p0])
@@ -194,6 +211,105 @@ class PermutationMM(BaseEstimator):
                         self.converged_ = True
                         break
 
+            if loglikelihoods[-1] >= max_log_prob:
+                ag.info("Updated best log likelihood to {0}".format(
+                    loglikelihoods[-1]))
+                max_log_prob = loglikelihoods[-1]
+                best_params = {'weights': self.weights_,
+                               'means': self.means_,
+                               'converged': self.converged_}
+
+        self.weights_ = best_params['weights']
+        self.means_ = best_params['means']
+        self.converged_ = best_params['converged']
+
+    def fit_grad(self, X,y):
+        """
+        Estimate model parameters with the expectation-maximization algorithm.
+
+        Parameters are set when constructing the estimator class.
+
+        Parameters
+        ----------
+        X : array_like, shape (n, n_permutations, n_features)
+            Array of samples, where each sample has been transformed
+            `n_permutations` times.
+        """
+
+        assert X.ndim == 3
+        N, P, F = X.shape
+
+        assert P == len(self.permutations)
+        K = self.n_components
+        self.means_=np.zeros((K,)+X.shape[1:])
+        eps = self.min_probability
+
+        max_log_prob = -np.inf
+        eta=.01*np.minimum(1,np.double(N)/20000)
+        print(N,eta)
+        n_batches=1
+        for trial in range(self.n_init):
+            self.weights_ = np.ones((K, P)) / (K * P)
+
+            # Initialize by picking K components at random.
+            if self.allocate:
+                    indices = np.arange(X.shape[0])
+                    self.random_state.shuffle(indices)
+                    Xs=np.array_split(X,K,axis=0)
+                    for i,XX in enumerate(Xs):
+                        self.means_[i,:] = np.mean(XX,axis=0)
+                    self.means_=np.clip(self.means_,
+                                self.min_probability,
+                                1-self.min_probability)
+
+            else:
+                repr_samples = X[self.random_state.choice(N, K, replace=False)]
+                self.means_ = repr_samples.clip(0.2, 0.8)
+
+            self.logits = np.log(self.means_/(1-self.means_))
+            loglikelihoods = []
+            self.converged_ = False
+            for loop in range(self.n_iter):
+                start = time.clock()
+                X_batches = np.array_split(X, n_batches)
+                for Xb in X_batches:
+                    logprob, log_resp = self.score_block_samples(Xb)
+                    resp = np.exp(log_resp)
+                    sh = (-1, log_resp.shape[1])
+                    _ldens = log_resp.transpose((0, 2, 1)).reshape(sh)
+                    log_dens = logsumexp(_ldens, axis=0)[np.newaxis, :, np.newaxis]
+                    dens = np.exp(log_dens)
+                    # Reweigh probabilities by sum of responsibilities for each component/rotation.
+                    self.means_ *= dens.ravel()[:, np.newaxis, np.newaxis]
+                    for p in range(P):
+                        v = 0.0
+                        # Add up estimates from each candidate permutation based on its weight.
+                        for shift in range(P):
+                            p0 = self.permutations[shift, p]
+                            v += np.dot(resp[:, :, shift].T, X[:, p0])
+
+                        self.logits[:, p, :] += eta*(v-self.means_[:,p,:])
+                        self.means_[:,p,:]=np.exp(self.logits[:,p,:])/(np.exp(self.logits[:,p,:])+1)
+                wprime = np.apply_over_axes(np.sum, resp, [0])[0, :, :]
+                self.weights_[:] = (wprime / N).clip(0.0001, 1 - 0.0001)
+
+                # Calculate log likelihood
+                loglikelihoods.append(logprob.sum())
+
+                ag.info("Trial {trial}/{n_trials}  Iteration {iter}  "
+                        "Time {time:.2f}s  Log-likelihood {llh}".format(
+                            trial=trial+1,
+                            n_trials=self.n_init,
+                            iter=loop+1,
+                            time=time.clock() - start,
+                            llh=loglikelihoods[-1]))
+
+                if loop > 1:
+                    diff = loglikelihoods[-1] - loglikelihoods[-2]
+                    if diff/abs(loglikelihoods[-2]) < self.thresh:
+                        self.converged_ = True
+                        break
+
             if loglikelihoods[-1] > max_log_prob:
                 ag.info("Updated best log likelihood to {0}".format(
                     loglikelihoods[-1]))
@@ -205,6 +321,7 @@ class PermutationMM(BaseEstimator):
         self.weights_ = best_params['weights']
         self.means_ = best_params['means']
         self.converged_ = best_params['converged']
+
 
     def predict_flat(self, X):
         """
@@ -248,4 +365,5 @@ class PermutationMM(BaseEstimator):
         """
         ii = self.predict_flat(X)
         sh = (self.n_components, len(self.permutations))
+
         return np.vstack(np.unravel_index(ii, sh)).T

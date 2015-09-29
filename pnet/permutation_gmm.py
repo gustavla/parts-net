@@ -1,8 +1,9 @@
 import numpy as np
 import itertools as itr
 import amitgroup as ag
-from scipy.misc import logsumexp
+#from scipy.misc import logsumexp
 from sklearn.base import BaseEstimator
+from pnet.oriented_gaussian_parts_layer import log_multivariate_normal_density, logsumexp, lognormalized
 import time
 
 _COV_TYPES = ['ones', 'tied', 'diag', 'diag-perm',
@@ -15,12 +16,12 @@ class PermutationGMM(BaseEstimator):
     """
     def __init__(self, n_components=1, permutations=1, covariance_type='tied',
                  min_covar=1e-3, n_iter=20, n_init=1, params='wmc',
-                 random_state=0, thresh=1e-2, covar_limit=None, target_entropy=None):
+                 random_state=None, thresh=1e-2, covar_limit=None, target_entropy=None, allocate=False):
 
         assert covariance_type in _COV_TYPES, "Covariance type not supported"
         if not isinstance(random_state, np.random.RandomState):
             random_state = np.random.RandomState(random_state)
-
+        self.allocate=allocate
         self._covtype = covariance_type
         self.random_state = random_state
         self.n_components = n_components
@@ -69,44 +70,47 @@ class PermutationGMM(BaseEstimator):
             permutation for each observation.
 
         """
-        from scipy.stats import multivariate_normal
+
         N = X.shape[0]
         K = self.n_components
         P = len(self.permutations)
 
         unorm_log_resp = np.empty((N, K, P))
         unorm_log_resp[:] = np.log(self.weights_[np.newaxis])
-
         for p in range(P):
             for shift in range(P):
                 p0 = self.permutations[shift, p]
                 for k in range(K):
                     if self._covtype == 'ones':
-                        cov = np.diag(self.covars_)
+                        cov = self.covars_[k,shift]
                     elif self._covtype == 'tied':
                         cov = self.covars_
                     elif self._covtype == 'diag-perm':
-                        cov = np.diag(self.covars_[p])
+                        cov = self.covars_[shift]
                     elif self._covtype == 'diag':
-                        cov = np.diag(self.covars_[k, p])
+                        cov = self.covars_[k, shift]
                     elif self._covtype == 'full':
                         cov = self.covars_[k]
                     elif self._covtype == 'full-perm':
-                        cov = self.covars_[p]
+                        cov = self.covars_[shift]
                     elif self._covtype == 'full-full':
-                        cov = self.covars_[k, p]
+                        cov = self.covars_[k, shift]
 
-                    unorm_log_resp[:, k, p] += multivariate_normal.logpdf(
-                        X[:, p0],
-                        mean=self.means_[k, shift],
-                        cov=cov)
+                    #if (self._covtype == 'diag'):
+                    #print('going to log_diag')
+                    unorm_log_resp[:,k,p] += log_multivariate_normal_density(X[:,p0], self.means_[k,shift], cov,
+                                           self._covtype)
+                    # else:
+                    #     unorm_log_resp[:, k, p] += multivariate_normal.logpdf(X[:, p0],mean=self.means_[k, shift],cov=cov)
 
         unorm_reshaped = unorm_log_resp.reshape((unorm_log_resp.shape[0], -1))
-        logprob = logsumexp(unorm_reshaped.clip(min=-500), axis=-1)
-        log_resp = unorm_log_resp - logprob[..., np.newaxis, np.newaxis]
-        log_resp = log_resp.clip(min=-500)
-
-        return logprob, log_resp
+        #logprob = logsumexp(unorm_reshaped,axis=-1)
+        #log_resp1 = unorm_log_resp - logprob[..., np.newaxis, np.newaxis]
+        # log_resp = log_resp.clip(min=-500)
+        log_resp, logprob = lognormalized(unorm_reshaped,-1)
+        log_resp.shape=unorm_log_resp.shape
+        #log_resp=log_resp[...,np.newaxis]
+        return logprob, log_resp, unorm_log_resp
 
     def fit(self, X):
         """
@@ -121,129 +125,28 @@ class PermutationGMM(BaseEstimator):
             `n_permutations` times.
 
         """
-        def diff_entropy(cov):
-            sign, logdet = np.linalg.slogdet(cov)
-            return 0.5 * cov.shape[0] * np.log(2 * np.pi * np.e) + logdet
-
-        def reg_covar(cov0, mcov, target_entropy):
-            def regularize_cov(reg_val):
-                return cov0 * (1 - reg_val) + np.eye(cov0.shape[0]) * reg_val
-
-            lo, hi = self.min_covar * (1 + np.array([-0.95, 2.95]))
-            ent = None
-            for d in range(15):
-                mi = np.mean([lo, hi])
-
-                c = regularize_cov(mi)
-                ent = diff_entropy(c)
-                print('ent', ent)
-                if ent > target_entropy:
-                    hi = mi
-                else:
-                    lo = mi
-
-            mcov1 = np.mean([lo, hi])
-            print('mcov multiple', mcov1 / mcov)
-            return regularize_cov(mcov1)
-
 
         assert X.ndim == 3
         N, P, F = X.shape
 
         assert P == len(self.permutations)
         K = self.n_components
-
+        self.means_=np.zeros((K,)+X.shape[1:])
         if K == 1 and P == 1 and self._covtype == 'diag':
             self.weights_ = np.ones(1)
             self.means_ = ag.apply_once(np.mean, X, [0])
             c0 = ag.apply_once(np.var, X, [0])
             self.covars_ = c0 + self.min_covar
             self.converged_ = True
-            def diff_entropy(cov):
-                return 0.5 * cov.shape[2] * np.log(2 * np.pi * np.e) + np.sum(np.log(np.fabs(cov)))
-
-            if self._target_entropy is None:
-                c = c0 + self.min_covar
-                ent = diff_entropy(c)
-                self._target_entropy = ent
-                self.covars_ = c
-                self._entropy = ent
-            else:
-                lo, hi = self.min_covar * (1 + np.array([-0.25, 0.25]))
-                self._entropy = diff_entropy(self.covars_)
-                for d in range(10):
-                    mi = np.mean([lo, hi])
-
-                    c = c0 + mi
-                    ent = diff_entropy(c)
-                    print('ent', ent)
-                    if ent > self._target_entropy:
-                        hi = mi
-                    else:
-                        lo = mi
-
-                mcov = np.mean([lo, hi])
-                print('mcov', mcov)
-
-                print('target_entropy', self._target_entropy)
-                print('diff', np.fabs(ent - self._target_entropy))
-
-                self.covars_ = c0 + mcov
-                self._entropy = diff_entropy(self.covars_)
             return
         if K == 1 and P == 1 and self._covtype == 'tied':
             cov0 = np.cov(X[:,0].T)
 
             U, S, V = np.linalg.svd(cov0)
-            def regularize_cov(reg_val):
-                #return cov0 + np.eye(cov.shape[0]) * reg_val
-                return cov0 * (1 - reg_val) + np.eye(cov0.shape[0]) * reg_val
-                #regS = S.clip(min=reg_val)
-                #regS = (S + 0.0001) * (reg_val / self.min_covar)
-                #return np.dot(np.dot(U, np.diag(regS)), V)
 
             self.weights_ = np.ones(1)
             self.means_ = ag.apply_once(np.mean, X, [0])
             self.converged_ = True
-            if self._target_entropy is None:
-                c = regularize_cov(self.min_covar)
-                ent = diff_entropy(c)
-                self.covars_ = c
-                self._entropy = ent
-            else:
-                lo, hi = self.min_covar * (1 + np.array([-0.95, 1.95]))
-                ent = None
-                for d in range(15):
-                    mi = np.mean([lo, hi])
-
-                    c = regularize_cov(mi)
-                    ent = diff_entropy(c)
-                    print('ent', ent)
-                    if ent > self._target_entropy:
-                        hi = mi
-                    else:
-                        lo = mi
-
-                mcov = np.mean([lo, hi])
-                print('mcov', mcov)
-
-                print('target_entropy', self._target_entropy)
-                print('diff', np.fabs(ent - self._target_entropy))
-
-                self.covars_ = regularize_cov(mcov) #np.cov(X[:,0].T) + np.diag(np.ones(F)*mcov)
-
-                #print('diff entropy', diff_entropy(self.covars_))
-
-                self._entropy = diff_entropy(self.covars_)
-            return
-
-        #N34 = 3 * N // 4
-        #HX = X[N34:]
-        #X = X[:N34]
-
-        #HN = N - N34
-        #N = N34
-        print('HERE')
 
         XX = X.reshape((-1, X.shape[-1]))
 
@@ -258,8 +161,8 @@ class PermutationGMM(BaseEstimator):
             # Initialize to covariance matrix of all samples
             if self._covtype == 'diag':
                 pass
-            elif 0:
-                cv = np.eye(F)
+            elif self._covtype == 'ones':
+                pass
             elif 1:
                 print('cov')
                 cv = (1 - self.min_covar) * np.cov(flatX.T) + self.min_covar * np.eye(F)
@@ -268,30 +171,20 @@ class PermutationGMM(BaseEstimator):
                 cv = ag.io.load('/var/tmp/cov.h5')
 
             # Initialize by picking K components at random.
-            if self._covtype == 'diag':
+            if self._covtype == 'diag' or self._covtype=='ones':
+                if self.allocate:
+                    indices = np.arange(X.shape[0])
+                    self.random_state.shuffle(indices)
+                    Xs=np.array_split(X[indices],K,axis=0)
+                    for i,XX in enumerate(Xs):
+                        self.means_[i,:] = np.mean(XX,axis=0)
+            else:
                 repr_samples = X[self.random_state.choice(N, K, replace=False)]
                 self.means_ = repr_samples
-            elif 0:
-                # Initialize by running kmeans
-                assert P == 1
-                from sklearn.cluster import KMeans
-                clf = KMeans(n_clusters=K)
-                XX2 = np.dot(cv, flatX.T).T
 
-                clf.fit(XX2)
-
-                means = clf.means_
-
-                self.means_ = clf.means_.reshape((K,) + X.shape[1:])
-            else:
-                # TODO: Does not initialize permutations in a coherent way, but
-                # this might not be needed anyway
-                rs = np.random.RandomState(trial)  # TODO: Insert seed
-                mm = rs.multivariate_normal(np.zeros(F), cv, size=K * P)
-                self.means_ = mm.reshape((K,) + X.shape[1:])
 
             if self._covtype == 'ones':
-                self.covars_ = np.ones(cv.shape[0])
+                self.covars_ = np.tile(np.ones(F), (K, P, 1))
             elif self._covtype == 'tied':
                 self.covars_ = cv
             elif self._covtype == 'diag':
@@ -304,20 +197,13 @@ class PermutationGMM(BaseEstimator):
                 self.covars_ = np.tile(cv, (P, 1, 1))
             elif self._covtype == 'full-full':
                 self.covars_ = np.tile(cv, (K, P, 1, 1))
-
+            #self.covars_ *= self.min_covar
             self.converged_ = False
             for loop in range(self.n_iter):
                 start = time.clock()
 
                 # E-step
-                logprob, log_resp = self.score_block_samples(X)
-
-                #test_logprob, _ = self.score_block_samples(HX)
-                #test_loglikelihood = test_logprob.sum()
-
-                # TODO
-                hh = np.histogram(np.exp(log_resp.max(-1).max(-1)),
-                                  bins=np.linspace(0, 1, 11))
+                logprob, log_resp, lpr = self.score_block_samples(X)
 
                 sh = (-1, log_resp.shape[1])
                 resp = np.exp(log_resp)
@@ -328,15 +214,19 @@ class PermutationGMM(BaseEstimator):
                 # M-step
 
                 if 'm' in self._params:
+                    # For each permutation we want the mean of all clusters for that permutation
                     for p in range(P):
                         v = 0.0
+                        # Get the estimate by adding the contribution from each permutation relative to p
+                        # i.e. p0 weighted by the responsibility of that permutation for the data point.
                         for shift in range(P):
                             p0 = self.permutations[shift, p]
                             v += np.dot(resp[:, :, shift].T, X[:, p0])
 
                         self.means_[:, p, :] = v
+                    # The final means have to be normalized by the number of data points in the k cluster.
                     self.means_ /= dens.ravel()[:, np.newaxis, np.newaxis]
-
+                    self.means_[self.means_<.00001]=0
                 if 'w' in self._params:
                     ww = (ag.apply_once(np.sum, resp, [0], keepdims=False) / N)
                     self.weights_[:] = ww.clip(0.0001, 1 - 0.0001)
@@ -382,19 +272,6 @@ class PermutationGMM(BaseEstimator):
                                                self.means_,
                                                resp,
                                                self.permutations)
-
-                        for k in range(K):
-                            #dd = np.diag(self.covars_[k])
-                            #clipped_dd = dd.clip(min=self.min_covar)
-                            #self.covars_[k] += np.diag(clipped_dd - dd)
-
-                            self.covars_[k] = reg_covar(self.covars_[k],
-                                                        self.min_covar,
-                                                        -9000.0)
-
-                            #c = self.covars_[k]
-                            #c = (1 - mcov) * c + mcov * np.eye(c.shape[0])
-                            #self.covars_[k] = c
 
                     elif self._covtype == 'full-perm':
                         from pnet.cyfuncs import calc_new_covar_fullperm as calc
@@ -446,7 +323,7 @@ class PermutationGMM(BaseEstimator):
 
             if loglikelihoods[-1] > max_log_prob:
                 ag.info("Updated best log likelihood to {}"
-                        .format(loglikelihoods[-1]))
+                        .format(loglikelihoods[-1]/N))
                 max_log_prob = loglikelihoods[-1]
                 best_params = {'weights': self.weights_,
                                'means': self.means_,
@@ -482,7 +359,7 @@ class PermutationGMM(BaseEstimator):
         if self.means_.shape[0] == 1:
             return np.zeros(X.shape[0], dtype=np.int64)
         else:
-            logprob, log_resp = self.score_block_samples(X)
+            logprob, log_resp, lpr = self.score_block_samples(X)
             ii = log_resp.reshape((log_resp.shape[0], -1)).argmax(-1)
             return ii
 
@@ -506,3 +383,5 @@ class PermutationGMM(BaseEstimator):
         ii = self.predict_flat(X)
         sh = (self.n_components, len(self.permutations))
         return np.vstack(np.unravel_index(ii, sh)).T
+
+

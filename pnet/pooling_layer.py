@@ -9,15 +9,18 @@ import amitgroup as ag
 @Layer.register('pooling-layer')
 class PoolingLayer(Layer):
 
-    def __init__(self, shape=None, strides=None, final_shape=None,
-                 operation='max', settings={}):
-        assert (shape is None) != (final_shape is None)
-        self._shape = shape
-        self._final_shape = final_shape
-
-        self._strides = strides
-        self._settings = settings
-        self._operation = operation
+    def __init__(self, settings={}):
+        self._settings=dict(shape=None, strides=None, final_shape=None, operation=map)
+        for k, v in settings.items():
+            if k not in self._settings:
+                raise ValueError("Unknown settings: {}".format(k))
+            else:
+                self._settings[k] = v
+        assert (self._settings['shape'] is None) != (self._settings['final_shape'] is None)
+        self._shape = self._settings['shape']
+        self._final_shape = self._settings['final_shape']
+        self._strides = self._settings['strides']
+        self._operation = self._settings['operation']
         self._extract_info = {}
 
     def calc_shape(self, input_shape):
@@ -34,11 +37,15 @@ class PoolingLayer(Layer):
 
     def _extract(self, phi, data):
         X_F = phi(data)
+
         output_dtype = self._settings.get('output_dtype')
+        ## When a tuple is returned with the number of features the pooling
+        # translates a grid with integer part labels into a a grid x num_parts binary array.
         if isinstance(X_F, tuple):
+
             X = X_F[0]
             F = X_F[1]
-
+            print("Starting pooling layer",X.shape, X.dtype)
             #if X.ndim == 3:
                 #from pnet.cyfuncs import index_map_pooling as poolf
             #else:
@@ -46,10 +53,14 @@ class PoolingLayer(Layer):
             shape = self.calc_shape(X.shape[1:3])
             strides = self.calc_strides(X.shape[1:3])
 
-            if self._operation == 'max':
+            if self._operation == 'map':
                 from pnet.cyfuncs import index_map_pooling_multi as poolf
                 feature_map = poolf(X, F, shape, strides)
-
+            elif self._operation == 'max':
+                if len(X.shape)==5:
+                    X=np.float64(X.squeeze(4))
+                from pnet.cyfuncs import index_max_pooling_multi as poolf
+                feature_map = poolf(X, F, shape, strides)
             elif self._operation == 'sum':
                 from pnet.cyfuncs import index_map_sum_pooling_multi as poolf
                 feature_map = poolf(X, F, shape, strides)
@@ -60,7 +71,7 @@ class PoolingLayer(Layer):
 
             c = ag.apply_once(np.mean, feature_map, [0, 1, 2], keepdims=False)
             self._extract_info['concentration'] = c
-
+            #output_dtype="uint8"
             if output_dtype is not None:
                 return feature_map.astype(output_dtype)
             else:
@@ -68,7 +79,7 @@ class PoolingLayer(Layer):
 
         else:
             X = X_F
-
+            print("Start pooling layer max",X.shape,X.dtype)
             if self._operation == 'max':
                 op = np.max
             elif self._operation == 'sum':
@@ -102,7 +113,17 @@ class PoolingLayer(Layer):
                 return feature_map
 
             else:
-                raise NotImplementedError('Not yet')
+
+
+                shape = self.calc_shape(X.shape[1:3])
+                strides = self.calc_strides(X.shape[1:3])
+                from pnet.cyfuncs import index_max_pooling_multi as poolf
+                if len(X.shape)==5:
+                    X=X.squeeze(4)
+
+                F=X.shape[-1]
+                feature_map = poolf(X, F, shape, strides)
+                return feature_map
 
 
     @property
@@ -146,9 +167,7 @@ class PoolingLayer(Layer):
 
     @classmethod
     def load_from_dict(cls, d):
-        obj = cls(shape=d['shape'], strides=d['strides'],
-                  final_shape=d['final_shape'], operation=d['operation'],
-                  settings=d['settings'])
+        obj = cls(settings=d['settings'])
         return obj
 
     def __repr__(self):

@@ -10,6 +10,7 @@ class RectifierLayer(Layer):
 
     def _extract(self, phi, data):
         X = phi(data)
+        print('Percentage above threshold:',np.float(np.sum(X>0))/X.size)
         if self._rectifier == 'relu':
             return X.clip(min=0)
         else:
@@ -23,3 +24,4 @@ class RectifierLayer(Layer):
     @classmethod
     def load_from_dict(cls, d):
         obj = cls(rectifier=d['rectifier'])
+        return obj
