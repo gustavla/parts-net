@@ -40,7 +40,7 @@ class OrientedPartsLayer(Layer):
                               threshold=0.0,
                               samples_per_image=40,
                               max_samples=10000,
-                              seed=0,
+                              em_seed=0,
                               min_prob=0.005,
                               min_count=20,
                               std_thresh=0.05,  # TODO: Temp

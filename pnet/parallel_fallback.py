@@ -2,8 +2,12 @@ import sys
 import itertools as itr
 import numpy as np
 
-imap_unordered = itr.imap
-imap = itr.imap
+if sys.version_info >= (3,):
+    imap_unordered = map
+    imap = map
+else:
+    imap_unordered = itr.imap
+    imap = itr.imap
 starmap_unordered = itr.starmap
 starmap = itr.starmap
 
